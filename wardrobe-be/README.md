@@ -1,4 +1,4 @@
-# E-Commerce Assistant Backend
+# Wardrobe, Please backend
 
 Spring Boot service behind the storefront search API (`GET /api/v1/search`). See the
 repository root `Readme.md` for the overall project and how to run it locally.

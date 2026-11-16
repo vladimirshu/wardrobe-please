@@ -1,7 +1,7 @@
-# AI-Powered E-Commerce Assistant
+# Wardrobe, Please
 
 ## Project Overview
-An apparel discovery demo that lets customers browse a catalog and search in natural language, for example, “Show me a red waterproof jacket under €100.” Customers can refine a search conversationally, such as “the same jacket in blue.”
+An AI-powered clothing discovery demo. Shoppers can describe what they need in their own words, even if they have no specific garment in mind. For example, “I need something warm for a rainy walk, under €100.” They can then refine the results with a follow-up like “Something lighter, please,” or browse the catalog directly.
 
 The assistant interprets the request, retrieves candidates from Qdrant vector DB using semantic search and price constraints, and uses an LLM to select matching products. The storefront shows the interpreted search and product details. The catalog is seeded from CSV.
 
@@ -40,6 +40,8 @@ backend, the frontend (served by nginx), and Qdrant.
 cp .env.example .env   # then set DEEPSEEK_API_KEY (and OPENAI_API_KEY for embeddings)
 docker compose up --build
 ```
+
+Compose uses `wardrobe-please` as its project name. If you previously ran the stack as `ecom-assistant`, use `docker compose -p ecom-assistant up --build` to reuse its existing Qdrant volume.
 
 | Service  | URL                          |
 |----------|------------------------------|

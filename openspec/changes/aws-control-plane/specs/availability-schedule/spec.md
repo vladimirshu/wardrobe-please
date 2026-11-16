@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Weekday opening window
-The system SHALL start the backend instance every Monday to Friday at 08:00 and stop it every day at 22:00, both evaluated in a configured IANA time zone that follows daylight-saving changes. The time zone SHALL be a required deployment parameter with no default.
+The system SHALL start the backend instance on the configured opening days at the configured opening time and stop it daily at the configured closing time. The checked-in application configuration SHALL provide the IANA time zone so both schedules follow daylight-saving changes. The current configuration opens Monday to Friday at 08:00 and closes daily at 22:00 in Europe/Berlin.
 
 #### Scenario: Weekday morning
 - **WHEN** it is 08:00 on a Wednesday in the configured zone
@@ -16,7 +16,7 @@ The system SHALL start the backend instance every Monday to Friday at 08:00 and 
 - **THEN** the instance stays stopped
 
 #### Scenario: Missing time zone
-- **WHEN** the stack is deployed without a time zone parameter
+- **WHEN** the stack is deployed with a missing or invalid IANA time zone in the application configuration
 - **THEN** the deployment fails with a clear message
 
 ### Requirement: Twenty-minute off-hours session
@@ -46,7 +46,7 @@ Starting and stopping SHALL NOT depend on any signal from visitors other than ca
 - **THEN** the instance is stopped regardless
 
 ### Requirement: Shared frontend schedule
-The deployment SHALL generate the frontend opening days, times and IANA time zone from the same configuration used by the schedules and sweeper. The opening interval SHALL include its start and exclude its end in that zone. Schedule changes SHALL include rebuilding and deploying the frontend with the updated configuration.
+The frontend build, schedules and sweeper SHALL derive the opening days, times and IANA time zone from the same checked-in application configuration. The opening interval SHALL include its start and exclude its end in that zone. Schedule changes SHALL include rebuilding and deploying the frontend with the updated configuration.
 
 #### Scenario: Matching configuration
 - **WHEN** the stack and frontend are built for a deployment

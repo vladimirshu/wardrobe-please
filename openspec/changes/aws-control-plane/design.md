@@ -28,7 +28,7 @@ Node.js (arm64) Lambda, `AWS_IAM` auth on the Function URL with a CloudFront ori
 Algorithm per call: describe the instance; `stopped` → `StartInstances` then STARTING; `pending`/`stopping` → STARTING (a stopping instance is started on a later call, since the SPA nudges again every 3 s); `running` → probe `http://<EIP>:8080/api/v1/health` with a 2 s timeout and the `X-Origin-Verify` header → 200 gives UP, anything else STARTING. Idempotent by construction (`StartInstances` on a running instance is a no-op). The instance id, EIP and secret parameter name come from environment configuration; the secret is read from SSM at cold start.
 
 **3. Schedules in EventBridge Scheduler with an explicit time zone.**
-Two recurring schedules (start: Mon-Fri 08:00; stop: daily 22:00) call the EC2 `StartInstances`/`StopInstances` APIs through universal targets, so no Lambda is needed for them. The time zone is a required stack parameter so daylight-saving changes are handled by the service. Export days, from, to and zone from the same deployment configuration to the frontend build; deploy schedule changes with a rebuilt frontend. The opening interval is start-inclusive and end-exclusive in that zone.
+Two recurring schedules call the EC2 `StartInstances`/`StopInstances` APIs through universal targets, so no Lambda is needed for them. The stack reads the checked-in `eas-frontend/src/config/opening-hours.json` used by the frontend and configures weekday starts at 08:00 and daily stops at 22:00 in Europe/Berlin with the current values. EventBridge Scheduler uses the configured IANA zone to follow daylight-saving changes. Deploy schedule changes with a rebuilt frontend. The opening interval is start-inclusive and end-exclusive in that zone.
 - Alternative: cron rules in EventBridge Rules (UTC only, so DST shifts the window twice a year).
 
 **4. Off-hours session by sweeper, based on instance launch time.**
@@ -61,7 +61,6 @@ Control Lambda: `ec2:DescribeInstances`, `ec2:StartInstances` scoped to the inst
 
 ## Open Questions
 
-- Schedule time zone: not yet chosen (required stack parameter, no default).
 - IaC tool: CDK (TypeScript) is the working default, Terraform the alternative; not decided by the owner.
 - Custom domain: decided later; the control endpoint works on the CloudFront domain.
 - Whether the SPA should forward `?ref=` to `/up` (needed for the `ref` attribute of wake events; the same value is already visible in CloudFront logs).

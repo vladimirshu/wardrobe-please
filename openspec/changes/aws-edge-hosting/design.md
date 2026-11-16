@@ -82,5 +82,4 @@ When the owner decides on a domain: ACM public certificate in us-east-1 (DNS val
 - Does the free flat-rate plan allow the origin timeouts, custom error caching, response headers policy, WAF rule, standard logging and (later) a custom domain used here?
 - Custom domain: decided later by the owner.
 - IaC tool: CDK (TypeScript) as default, Terraform as alternative; not decided.
-- Deployment time zone is relevant only to `aws-control-plane`, but stack parameters are shared.
 - Region (the certificate for a future domain must be in us-east-1 regardless).

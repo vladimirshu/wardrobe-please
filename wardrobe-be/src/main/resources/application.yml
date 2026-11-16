@@ -1,6 +1,6 @@
 spring:
   application:
-    name: ecom-assistant
+    name: wardrobe-please
 
   # AI Configuration
   ai:

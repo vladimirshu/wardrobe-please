@@ -6,7 +6,7 @@ plugins {
 
 group = "com"
 version = "0.0.1-SNAPSHOT"
-description = "ecom-assistant"
+description = "wardrobe-please"
 
 java {
     toolchain {

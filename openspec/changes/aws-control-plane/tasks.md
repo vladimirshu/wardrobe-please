@@ -7,11 +7,11 @@
 
 ## 2. Schedules and sweeper
 
-- [ ] 2.1 Define EventBridge Scheduler start (Mon-Fri 08:00) and stop (daily 22:00) with universal targets for `StartInstances`/`StopInstances`, a dedicated role limited to the instance, and the required time-zone parameter (fail the deployment when it is missing)
+- [ ] 2.1 Define EventBridge Scheduler start (Mon-Fri 08:00 with the current configuration) and stop (daily 22:00) with universal targets for `StartInstances`/`StopInstances` and a dedicated role limited to the instance. Use the IANA time zone from the shared application configuration.
 - [ ] 2.2 Implement the sweeper Lambda (every 5 minutes): stop when running, outside the window (same constants as the schedules, same zone) and uptime from `LaunchTime` is at least 20 minutes
 - [ ] 2.3 Unit tests for the window logic with a fixed clock: weekday inside/outside, weekend, DST change day, 19 vs 20 minutes of uptime, 21:50 start
 - [ ] 2.4 Verify that `LaunchTime` changes after each stop/start cycle; if not, switch to a one-time schedule per wake (document in design)
-- [ ] 2.5 Generate frontend `VITE_OPEN_TZ`, `VITE_OPEN_DAYS`, `VITE_OPEN_FROM`, `VITE_OPEN_TO` from the same deployment configuration as Scheduler and sweeper; validate them and document rebuilding/redeploying the frontend with schedule changes
+- [ ] 2.5 Read and validate `eas-frontend/src/config/opening-hours.json` during stack setup for Scheduler and the sweeper. Document rebuilding and redeploying the frontend alongside schedule changes.
 
 ## 3. Data and wiring
 

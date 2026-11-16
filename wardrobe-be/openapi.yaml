@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: E-Commerce Assistant API
+  title: Wardrobe, Please API
   version: 0.0.1-SNAPSHOT
   description: |
     AI-powered e-commerce assistant that lets customers search and explore a
@@ -21,7 +21,7 @@ info:
       HTTP 422 and a body carrying `suggestedPrompts`.
 
   contact:
-    name: E-Commerce Assistant Team
+    name: Wardrobe, Please Team
 
 servers:
   - url: http://localhost:8080

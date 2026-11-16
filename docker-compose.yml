@@ -1,3 +1,5 @@
+name: wardrobe-please
+
 services:
   backend:
     build: ./eas-backend
