@@ -23,6 +23,8 @@ The demo does not include customer accounts, authentication, cart, checkout, or 
 
 ## Repository Structure
 
+See the [search request flow](docs/architecture.md) for validation and calls to external services.
+
 | Directory | Project | Specifications |
 |---|---|---|
 | `wardrobe-be/` | Spring Boot API (Gradle, Java): natural language search, guardrails, vector search | `wardrobe-be/openspec/` |
