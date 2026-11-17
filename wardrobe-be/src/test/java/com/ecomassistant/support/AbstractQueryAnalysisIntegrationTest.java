@@ -34,6 +34,9 @@ public abstract class AbstractQueryAnalysisIntegrationTest extends AbstractRetri
     @BeforeEach
     void resetWireMock() {
         wireMock.resetAll();
+        // Let retrieval tests observe any candidates from the fixture catalog.
+        OpenAiWireMockStubs.stubProductSelection(wireMock, "RAIN1", "RAIN2", "RAIN3",
+                "WOOL1", "WOOL2", "WOOL3", "SHIRT1", "DENIM1");
     }
 
     @Autowired

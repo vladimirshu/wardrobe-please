@@ -49,9 +49,17 @@ sequenceDiagram
     Embed-->>API: Query and optional negative-example vectors
     API->>DB: Compare query vectors with stored product vectors and apply price filters
     DB-->>API: Ranked product matches
+    opt Matches found
+        API->>Chat: Refine candidates using the interpreted query and constraints
+        Chat-->>API: Structured selection of SKUs
+        break Invalid or incomplete selection
+            API-->>Shop: 500 Illegal assistant response
+        end
+        API->>API: Keep selected catalog records in retrieval order and cap results
+    end
     API-->>Shop: 200 Products and search interpretation
 ```
 
 Qdrant can run locally or in Qdrant Cloud. OpenAI supplies embeddings with either chat provider. Catalog browsing and readiness checks use Qdrant directly.
 
-The planned [AWS edge](../openspec/changes/aws-edge-hosting/design.md) and [wake-up flow](../openspec/changes/aws-control-plane/design.md) are documented in OpenSpec.
+The planned [provider-managed MCP search flow](../wardrobe-be/openspec/changes/latency-first-mcp-catalog-search/design.md), [AWS edge](../openspec/changes/aws-edge-hosting/design.md), and [wake-up flow](../openspec/changes/aws-control-plane/design.md) are documented in OpenSpec.

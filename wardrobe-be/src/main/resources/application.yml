@@ -53,6 +53,8 @@ ecom:
     # Max documents returned by the vector DB
     top-k: 10
     similarity-threshold: 0.15
+    max-results: 10
+    product-filter-max-output-tokens: 300
   memory:
     inactivity-timeout: 24h
     cleanup-interval: 1h

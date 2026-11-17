@@ -1,7 +1,9 @@
 package com.ecomassistant.service;
 
 import com.ecomassistant.config.MetricsConfig;
+import com.ecomassistant.config.EcomSearchProperties;
 import com.ecomassistant.dto.ProductDtoMapper;
+import com.ecomassistant.guardrails.SkuOutputGuardrail;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
@@ -66,7 +68,8 @@ class ProductSearchTimingTest {
 
         @Bean
         ProductSearchService productSearchService(ChatClient chatClient) {
-            return new ProductSearchService(chatClient, mock(ProductDtoMapper.class));
+            return new ProductSearchService(chatClient, mock(ProductDtoMapper.class), new SkuOutputGuardrail(),
+                    new EcomSearchProperties(10, 0.15f, 10));
         }
     }
 }

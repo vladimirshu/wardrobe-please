@@ -44,7 +44,8 @@ paths:
       description: |
         Interprets the user's natural-language message with an LLM, extracts
         search intent, negative examples and price constraints, then runs a
-        semantic (vector) search against the product catalog.
+        semantic (vector) search against the product catalog. If candidates
+        are found, a second LLM call selects matching SKUs from those candidates.
 
         If the message is irrelevant to apparel search, confusing or
         contradictory, the request is rejected with HTTP 422 and the body
@@ -204,11 +205,9 @@ paths:
                     message: Daily search budget exhausted. Retry after 3600 seconds.
         '500':
           description: |
-            Internal server error. Returned when the LLM produced an invalid
-            query analysis: not matching the expected schema after retries,
-            a blank or too long search query, text containing control
-            characters, too many suggested prompts or negative examples, or a
-            non-positive price.
+            Internal server error. Returned when the LLM produced invalid
+            query analysis or an invalid product selection, including output
+            that still does not match the expected schema after retries.
           content:
             application/json:
               schema:

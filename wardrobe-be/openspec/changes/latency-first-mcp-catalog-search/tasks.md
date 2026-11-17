@@ -19,6 +19,6 @@
 
 ## 4. Evaluation and rollout
 
-- [ ] 4.1 Compare the existing direct-search baselines, optimized direct retrieval, equivalent direct and MCP retrieval, and the complete OpenAI-managed MCP flow. Record latency, errors, relevance, and actual outbound request counts.
+- [ ] 4.1 Compare the two-call GPT-6 Luna storefront and the complete OpenAI-managed MCP flow with the same optimized retriever. Use the historical baselines, direct retrieval without selection, and matched direct and MCP retrieval as controls. Record latency, errors, relevance, token use, and actual outbound request counts.
 - [ ] 4.2 Record the agreed storefront p95 budget and verify latency, security, and relevance acceptance in an isolated deployment.
 - [ ] 4.3 Document catalog readiness, rollout to the single-request MCP flow, and operator rollback to direct search.

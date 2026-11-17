@@ -5,14 +5,19 @@ import com.ecomassistant.guardrails.QueryAnalysisGuardrailAdvisor;
 import com.ecomassistant.guardrails.QueryAnalysisProviderStrategy;
 import com.ecomassistant.memory.ExpiringInMemoryChatMemoryRepository;
 import com.ecomassistant.memory.ValidatedQueryAnalysisMemoryAdvisor;
-import com.ecomassistant.rag.DirectRetrievalAdvisor;
+import com.ecomassistant.rag.EmptyRetrievalAdvisor;
+import com.ecomassistant.rag.ProductSelection;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.StructuredOutputValidationAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.prompt.ChatOptions;
+import org.springframework.ai.deepseek.DeepSeekChatOptions;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
@@ -62,20 +67,32 @@ public class AiConfig {
 
     /**
      * The single chat client backing the search endpoint. Its advisor chain (outer to
-     * inner) runs: query-analysis guardrail (the only LLM call), retrieval augmentation,
-     * and the direct-retrieval short-circuit that returns the retrieved documents without
-     * ever invoking the model. No memory advisor: the query-analysis call already
-     * compressed history into {@code searchQuery}, and retrieval does not need it.
+     * inner) runs query analysis, retrieval, and SKU selection if candidates exist.
+     * Only query analysis uses conversation memory.
      */
     @Bean
     public ChatClient productSearchChatClient(ChatModel chatModel,
             QueryAnalysisGuardrailAdvisor queryAnalysisGuardrailAdvisor,
             RetrievalAugmentationAdvisor productSearchRetrievalAdvisor,
-            DirectRetrievalAdvisor directRetrievalAdvisor) {
+            EmptyRetrievalAdvisor emptyRetrievalAdvisor,
+            @Value("${spring.ai.model.chat}") String provider,
+            @Value("${ecom.search.product-filter-max-output-tokens}") int maxOutputTokens) {
+        ChatOptions.Builder<?> options = switch (provider) {
+            case "openai" -> OpenAiChatOptions.builder()
+                    .maxCompletionTokens(maxOutputTokens).outputSchema(ProductSelection.SCHEMA);
+            case "deepseek" -> DeepSeekChatOptions.builder().maxTokens(maxOutputTokens);
+            default -> throw new IllegalStateException("Unsupported storefront chat provider: " + provider);
+        };
         return ChatClient.builder(chatModel)
+                .defaultOptions(options)
                 .defaultAdvisors(queryAnalysisGuardrailAdvisor,
                         productSearchRetrievalAdvisor,
-                        directRetrievalAdvisor)
+                        emptyRetrievalAdvisor,
+                        StructuredOutputValidationAdvisor.builder()
+                                .outputJsonSchema(ProductSelection.SCHEMA)
+                                .maxRepeatAttempts(1)
+                                .advisorOrder(-100)
+                                .build())
                 .build();
     }
 

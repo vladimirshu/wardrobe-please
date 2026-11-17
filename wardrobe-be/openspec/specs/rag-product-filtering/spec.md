@@ -1,7 +1,7 @@
 # rag-product-filtering Specification
 
 ## Purpose
-TBD - created by syncing change rag-product-filtering. Update Purpose after archive.
+Refine semantic retrieval with a model that selects SKUs from the candidates.
 ## Requirements
 ### Requirement: Two LLM calls per successful search
 For an allowed search request with at least one retrieved candidate, the system SHALL make exactly two LLM calls: the query analysis, then the product filtering over the retrieved candidates. Schema-validation retries are excluded from this count.

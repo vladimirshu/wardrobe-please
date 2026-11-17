@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Reproducible latency comparison
-The evaluation SHALL compare the original DeepSeek and migrated GPT-6 Luna direct-search baselines, optimized direct retrieval, deterministic MCP invocation with equivalent prepared inputs, and model-driven MCP selection. It SHALL record catalog and workload revisions, provider and model, configuration, warm-up and repetition policy, concurrency, and the sample count per mode. Paired transport comparisons SHALL use the same prepared inputs and retrieval settings. Real-model runs SHALL follow the existing opt-in evaluation requirements.
+The main comparison SHALL use GPT-6 Luna and the same optimized retriever for the backend-orchestrated two-call flow and the provider-managed MCP flow. Controls SHALL include the provider migration baselines, optimized direct retrieval without selection, and deterministic MCP invocation with equivalent prepared inputs. The evaluation SHALL record catalog and workload revisions, provider and model, configuration, warm-up and repetition policy, concurrency, and the sample count per mode. Paired transport comparisons SHALL use the same prepared inputs and retrieval settings. Real-model runs SHALL follow the existing opt-in evaluation requirements.
 
 #### Scenario: Compare transport
 - **WHEN** identical validated queries pass through direct retrieval and MCP retrieval in the same environment

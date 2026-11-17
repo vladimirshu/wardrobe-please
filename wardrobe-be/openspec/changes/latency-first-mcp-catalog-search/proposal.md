@@ -1,6 +1,6 @@
 ## Why
 
-Storefront search already uses one chat-model round trip before retrieval. It can reduce avoidable retrieval latency and improve hard-constraint matching while exposing the same catalog search to MCP clients. The storefront will use model-based candidate filtering. Its latency and relevance need to be measured on the actual catalog.
+Storefront search uses one chat request to analyze the query and a second to filter the retrieved candidates when there are matches. This planned change moves orchestration to the provider, exposes catalog retrieval to MCP clients, and improves hard-constraint matching. The effect on latency and relevance needs to be measured on the actual catalog.
 
 ## Prerequisite
 
@@ -10,7 +10,7 @@ Complete and verify [migrate-to-openai-luna](../archive/2026-11-17-migrate-to-op
 
 - Expose an authenticated, read-only MCP catalog search tool that reuses the storefront retriever.
 - Extract explicit catalog sizes alongside price and apply both as Qdrant filters before ranking. Batch positive and negative embedding inputs into one request where supported.
-- Use one backend request to GPT-6 Luna for the entire storefront workflow. OpenAI executes the model-requested MCP search and feeds the results back to the same workflow for selection before returning. Compare latency with the direct-search baselines.
+- Use one backend request to GPT-6 Luna for the entire storefront workflow. OpenAI executes the model-requested MCP search and feeds the results back to the same workflow for selection before returning. Compare it with the backend-orchestrated flow using the same retrieval settings and retain retrieval without selection as a control.
 - Align the archived filtering and model-budget requirements with the new storefront flow.
 
 ## Capabilities

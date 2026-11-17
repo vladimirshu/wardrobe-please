@@ -46,6 +46,7 @@ public class QueryAnalysisGuardrailAdvisor implements BaseAdvisor {
         Map<String, Object> context = new HashMap<>(chatClientRequest.context());
         context.putAll(retrievalParametersMapper.toContext(analysis));
         context.put(ProductFilterContextKeys.QUERY_ANALYSIS, analysis);
+        context.put(ProductFilterContextKeys.ORIGINAL_MESSAGE, message);
 
         return chatClientRequest.mutate()
             .prompt(chatClientRequest.prompt().augmentUserMessage(analysis.searchQuery()))

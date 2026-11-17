@@ -3,14 +3,14 @@
 ## Project Overview
 An AI-powered clothing discovery demo. Shoppers can describe what they need in their own words, even if they have no specific garment in mind. For example, “I need something warm for a rainy walk, under €100.” They can then refine the results with a follow-up like “Something lighter, please,” or browse the catalog directly.
 
-The assistant interprets the request and retrieves matching products from Qdrant using semantic search and price constraints. The storefront shows the interpreted search and product details. The catalog is seeded from CSV.
+The assistant interprets the request, retrieves catalog candidates from Qdrant using semantic search and price constraints, and asks the model to select the matches. The storefront shows the interpreted search and product details. The catalog is seeded from CSV.
 
 ## User workflow
 
 1. The customer submits a natural-language search. The backend normalizes and validates the input.
 2. The configured chat model checks and interprets the request, using conversation history for follow-ups. GPT-6 Luna is the default. Rejected requests receive suggested prompts.
 3. Qdrant retrieves relevant catalog candidates using the interpreted query, price constraints, and negative examples.
-4. The backend returns the retrieved products and the validated search interpretation.
+4. If there are candidates, the chat model selects matching SKUs. The backend returns the selected catalog records in retrieval order, along with the validated search interpretation.
 5. The customer reviews the results and product details, then can refine the search or start a new one.
 
 ## Security guardrails

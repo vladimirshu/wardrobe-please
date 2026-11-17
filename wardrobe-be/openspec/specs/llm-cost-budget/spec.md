@@ -38,7 +38,7 @@ The system SHALL keep the daily budget counter in process memory, so the counter
 - **THEN** the counter starts at zero
 
 ### Requirement: Bounded LLM cost per accepted search
-The system SHALL allow at most one schema-validation retry per LLM call (query analysis and product filtering) and SHALL set a configurable maximum output token limit on both calls (default 500 for the query analysis and 300 for the product filtering), so an accepted search makes at most 4 LLM calls.
+The system SHALL allow at most one schema-validation retry per LLM call (query analysis and product filtering) and SHALL set a configurable maximum output token limit on both calls (default 500 for query analysis and 300 for product filtering), so an accepted search makes at most four model attempts before any provider transport retries.
 
 #### Scenario: Retry limit
 - **WHEN** every query-analysis response fails schema validation

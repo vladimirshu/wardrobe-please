@@ -17,6 +17,7 @@ public final class OpenAiWireMockStubs {
 
     /** Marker present in the query-analysis system prompt. */
     public static final String QUERY_ANALYSIS_MARKER = "query-analysis step";
+    public static final String PRODUCT_FILTER_MARKER = "product-filtering step";
 
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
 
@@ -50,6 +51,10 @@ public final class OpenAiWireMockStubs {
     /** Stubs the query-analysis call to return the given {@link QueryAnalysis}. */
     public static void stubQueryAnalysis(WireMockServer server, QueryAnalysis analysis) {
         stubResponseForMarker(server, QUERY_ANALYSIS_MARKER, queryAnalysisJson(analysis));
+    }
+
+    public static void stubProductSelection(WireMockServer server, String... skus) {
+        stubResponseForMarker(server, PRODUCT_FILTER_MARKER, write(Map.of("skus", List.of(skus))));
     }
 
     /**

@@ -6,6 +6,8 @@ package com.ecomassistant.rag;
  */
 public final class ProductFilterContextKeys {
 
+    public static final String ORIGINAL_MESSAGE = "ecom_original_message";
+
     /**
      * Value: {@link com.ecomassistant.guardrails.QueryAnalysis} - the validated analysis
      * of the request, written by the query-analysis guardrail and read back by the search

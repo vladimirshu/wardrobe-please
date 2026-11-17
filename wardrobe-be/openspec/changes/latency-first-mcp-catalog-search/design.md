@@ -1,6 +1,6 @@
 ## Context
 
-`QueryAnalyzer` already combines safety, apparel relevance, conversational rewrite, price extraction and negative examples in one chat completion. `DirectRetrievalAdvisor` returns retrieved products without a second completion. The retriever currently sends separate sequential embedding calls for negatives and the positive query when exclusions are present. Qdrant already applies the price constraint in the similarity query. Catalog sizes currently sit in a comma-separated payload string. The archived filtering and cost specs describe a second chat completion that the default code path no longer makes.
+`QueryAnalyzer` combines safety, apparel relevance, conversational rewrite, price extraction and negative examples in one chat completion. Qdrant applies the price constraint during retrieval. When there are candidates, the backend sends a second chat request to select SKUs and returns the matching catalog records in retrieval order. The retriever currently embeds the positive query and negative examples in separate calls. Catalog sizes currently sit in a comma-separated payload string.
 
  [migrate-to-openai-luna](../archive/2026-11-17-migrate-to-openai-luna/proposal.md) must be complete first. This change adds a Responses integration with one provider-managed MCP tool for the MCP search flow. OpenAI can execute the tool and resume generation inside that request. Internal model stages and the embedding call contribute to end-to-end latency. [OpenAI remote MCP](https://developers.openai.com/api/docs/guides/tools-connectors-mcp)
 
@@ -40,7 +40,7 @@ Return either a structured refusal or a successful interpretation with selected 
 
 ### Measure the protocol and the selection step separately
 
-Use the DeepSeek and GPT-6 Luna direct baselines from the provider migration to separate the provider switch from the MCP change. Measure the optimized direct path as a retrieval control. Compare direct retrieval and MCP using identical prepared inputs to estimate transport overhead. Then exercise the full model-driven storefront flow, including selection. Reuse the judged suite and include exclusion queries, sizes, empty results, follow-ups, and rejected requests. Freeze the model, catalog and workload, and count actual outbound chat requests separately from MCP and embedding requests. Record provider-internal stage timings only when exposed.
+Use the DeepSeek and GPT-6 Luna direct baselines from the provider migration to separate the provider switch from the MCP change. For the main comparison, use GPT-6 Luna for both workflows and give the two-call backend flow the same retriever, including embedding batching and exact size filters. Measure direct retrieval without selection as a control. Compare direct retrieval and MCP using identical prepared inputs to estimate transport overhead. Reuse the judged suite and include exclusion queries, sizes, empty results, follow-ups, and rejected requests. Freeze the catalog and workload; record tokens and actual outbound chat, MCP and embedding requests separately. Record provider-internal stage timings only when exposed.
 
 ## Migration Plan
 

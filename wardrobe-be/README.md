@@ -5,9 +5,9 @@ repository root `Readme.md` for the overall project and how to run it locally.
 
 ## Cost controls and operations
 
-An admitted search makes one query-analysis call to the configured chat provider. OpenAI GPT-6 Luna is the default.
-A completed response with invalid structured output may be retried once. The selected client applies its configured transport retry limit.
-Truncated or refused completions fail query analysis.
+An admitted search calls the configured chat provider for query analysis. If analysis allows the request and Qdrant returns candidates, a second call selects matching SKUs. Both calls use the same provider; OpenAI GPT-6 Luna is the default.
+Each call can retry invalid structured output once. The selected client also applies its configured transport retry limit.
+Truncated or refused completions fail the search.
 An allowed search uses the existing OpenAI `text-embedding-3-small` model for Qdrant.
 
 To switch, set `spring.ai.model.chat` in `application.yml` to `openai` or `deepseek` and restart the backend. With Compose, rebuild the backend image after editing the YAML. Set `OPENAI_API_KEY` for embeddings and OpenAI chat. Set `DEEPSEEK_API_KEY` when using DeepSeek chat.
@@ -20,10 +20,12 @@ Configure the limits in `application.yml`:
 | `ecom.limits.per-hour` | 20 | accepted searches per client per hour |
 | `ecom.limits.daily-budget` | 300 | accepted searches per UTC day across all clients |
 | `ecom.limits.trusted-proxy-hops` | 1 | trusted `X-Forwarded-For` entries, counted from the right |
-| `spring.ai.openai.chat.max-completion-tokens` | 500 | maximum completion tokens per attempt, including reasoning |
+| `spring.ai.openai.chat.max-completion-tokens` | 500 | maximum query-analysis completion tokens per attempt, including reasoning |
 | `spring.ai.openai.chat.timeout` | 15s | chat request timeout |
 | `spring.ai.openai.chat.max-retries` | 10 | SDK retries per attempt (up to 11 sends, including the initial send) |
-| `spring.ai.deepseek.chat.max-tokens` | 500 | DeepSeek completion token cap |
+| `spring.ai.deepseek.chat.max-tokens` | 500 | DeepSeek query-analysis completion token cap |
+| `ecom.search.product-filter-max-output-tokens` | 300 | SKU selection completion token cap for either provider |
+| `ecom.search.max-results` | 10 | maximum number of selected products returned |
 | `spring.ai.retry.max-attempts` | 10 | DeepSeek transport retries per attempt (up to 11 sends, including the initial send) |
 
 A rejected search returns HTTP 429 with a `Retry-After` header and a body

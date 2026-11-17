@@ -22,8 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Happy-path integration test: an allowed query analysis is mapped to retrieval
- * parameters, products are retrieved through the real Qdrant retriever and returned
- * directly, without a second LLM call.
+ * parameters before Qdrant supplies the candidates to product filtering.
  */
 class QueryAnalysisRetrievalIntegrationTest extends AbstractQueryAnalysisIntegrationTest {
 
@@ -53,23 +52,9 @@ class QueryAnalysisRetrievalIntegrationTest extends AbstractQueryAnalysisIntegra
         assertThat(prices).isNotEmpty();
         assertThat(prices).allMatch(price -> price <= 150.0);
         assertThat(skus).doesNotContain("RAIN3", "DENIM1", "WOOL1", "WOOL3");
-    }
-
-    @Test
-    void allowedRequestMakesExactlyOneLlmCall() throws Exception {
-        OpenAiWireMockStubs.stubQueryAnalysis(wireMock, new QueryAnalysis(true, List.of(), List.of(), "rain jacket",
-                List.of(), null, false));
-
-        mockMvc.perform(get("/api/v1/search")
-                        .param("message", "show me a rain jacket")
-                        .param("conversationId", java.util.UUID.randomUUID().toString()))
-                .andExpect(status().isOk());
-
-        List<LoggedRequest> requests = wireMock.getAllServeEvents().stream()
-                .map(event -> event.getRequest())
-                .toList();
-        assertThat(requests).hasSize(1);
-        assertThat(requests.get(0).getBodyAsString()).contains(OpenAiWireMockStubs.QUERY_ANALYSIS_MARKER);
+        String filterInput = bodyContaining(OpenAiWireMockStubs.PRODUCT_FILTER_MARKER).toString();
+        assertThat(filterInput).contains("at most 150 euro")
+                .doesNotContain("RAIN3", "DENIM1", "WOOL1", "WOOL3");
     }
 
     @Test
@@ -107,7 +92,9 @@ class QueryAnalysisRetrievalIntegrationTest extends AbstractQueryAnalysisIntegra
                 .containsExactlyInAnyOrder("operator", "value");
         assertThat(price.at("/1/type").asString()).isEqualTo("null");
 
-        LoggedRequest request = wireMock.getAllServeEvents().get(0).getRequest();
+        LoggedRequest request = wireMock.getAllServeEvents().stream().map(event -> event.getRequest())
+                .filter(r -> r.getBodyAsString().contains(OpenAiWireMockStubs.QUERY_ANALYSIS_MARKER))
+                .findFirst().orElseThrow();
         assertThat(request.getUrl()).isEqualTo("/v1/chat/completions");
         assertThat(request.getHeader("Authorization")).isEqualTo("Bearer test-key");
     }
