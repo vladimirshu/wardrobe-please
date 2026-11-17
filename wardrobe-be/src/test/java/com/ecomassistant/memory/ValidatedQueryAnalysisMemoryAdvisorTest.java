@@ -1,6 +1,7 @@
 package com.ecomassistant.memory;
 
 import com.ecomassistant.exception.IllegalAssistantResponseException;
+import com.ecomassistant.guardrails.OpenAiQueryAnalysisStrategy;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.ChatClientRequest;
@@ -9,6 +10,7 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.metadata.ChatGenerationMetadata;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -26,7 +28,7 @@ class ValidatedQueryAnalysisMemoryAdvisorTest {
     @Test
     void acceptsExplicitNullPriceConstraintAndStillRejectsInvalidObjects() {
         ChatMemory memory = MessageWindowChatMemory.builder().build();
-        var advisor = new ValidatedQueryAnalysisMemoryAdvisor(memory);
+        var advisor = new ValidatedQueryAnalysisMemoryAdvisor(memory, new OpenAiQueryAnalysisStrategy());
         var user = new UserMessage("rain jacket");
         var request = new ChatClientRequest(new Prompt(user), Map.of(ChatMemory.CONVERSATION_ID, "session"));
         var content = """
@@ -36,9 +38,10 @@ class ValidatedQueryAnalysisMemoryAdvisorTest {
         var assistant = new AssistantMessage(content.formatted("null"));
         var invalid = new AssistantMessage(content.formatted("{\"operator\":42,\"value\":100}"));
         CallAdvisorChain chain = mock(CallAdvisorChain.class);
+        var completed = ChatGenerationMetadata.builder().finishReason("STOP").build();
         when(chain.nextCall(any())).thenReturn(
-                new ChatClientResponse(new ChatResponse(List.of(new Generation(assistant))), Map.of()),
-                new ChatClientResponse(new ChatResponse(List.of(new Generation(invalid))), Map.of()));
+                new ChatClientResponse(new ChatResponse(List.of(new Generation(assistant, completed))), Map.of()),
+                new ChatClientResponse(new ChatResponse(List.of(new Generation(invalid, completed))), Map.of()));
 
         advisor.adviseCall(request, chain);
         assertThat(memory.get("session")).containsExactly(user, assistant);
@@ -53,7 +56,7 @@ class ValidatedQueryAnalysisMemoryAdvisorTest {
         ChatMemory memory = MessageWindowChatMemory.builder().build();
         memory.add("session", new UserMessage("previous"));
         var original = List.copyOf(memory.get("session"));
-        var advisor = new ValidatedQueryAnalysisMemoryAdvisor(memory);
+        var advisor = new ValidatedQueryAnalysisMemoryAdvisor(memory, new OpenAiQueryAnalysisStrategy());
         var request = new ChatClientRequest(new Prompt(new UserMessage("failed request")),
                 Map.of(ChatMemory.CONVERSATION_ID, "session"));
         CallAdvisorChain chain = mock(CallAdvisorChain.class);

@@ -20,10 +20,9 @@ repositories {
 
 dependencies {
     implementation(platform("org.springframework.ai:spring-ai-bom:2.0.2"))
-    implementation("org.springframework.ai:spring-ai-starter-model-deepseek")
     implementation("org.springframework.ai:spring-ai-starter-model-openai")
+    implementation("org.springframework.ai:spring-ai-starter-model-deepseek")
 //    implementation("org.springframework.ai:spring-ai-starter-model-ollama")
-//    implementation("org.springframework.ai:spring-ai-chroma-store")
     implementation("org.springframework.ai:spring-ai-starter-vector-store-qdrant")
     implementation("org.springframework.ai:spring-ai-rag")
     implementation("org.springframework.boot:spring-boot-starter-web")

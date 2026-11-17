@@ -49,7 +49,7 @@ public class GlobalExceptionHandler {
         Map<String, String> error = new HashMap<>();
         error.put("error", "Illegal assistant response");
         error.put("message", ex.getMessage());
-        log.error("Illegal assistant response: {}: Response: {}", ex.getMessage(), ex.getResponse());
+        log.error("Illegal assistant response: {}", ex.getMessage());
         return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
@@ -66,7 +66,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(GuardrailRejectedException.class)
     public ResponseEntity<ChatResponseDto> handleGuardrailRejectedException(GuardrailRejectedException ex) {
-        log.info("Request rejected by query analysis: {}", ex.getQueryAnalysis().rejectionReasons());
+        log.info("Request rejected by query analysis");
         return new ResponseEntity<>(
                 new ChatResponseDto(null, null, ex.getQueryAnalysis().suggestedPrompts()),
                 HttpStatus.UNPROCESSABLE_ENTITY);

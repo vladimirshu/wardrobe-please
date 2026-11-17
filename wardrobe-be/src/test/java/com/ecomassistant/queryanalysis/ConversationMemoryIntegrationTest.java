@@ -1,5 +1,7 @@
 package com.ecomassistant.queryanalysis;
 
+import com.ecomassistant.guardrails.PriceConstraint;
+import com.ecomassistant.guardrails.PriceOperator;
 import com.ecomassistant.guardrails.QueryAnalysis;
 import com.ecomassistant.support.AbstractQueryAnalysisIntegrationTest;
 import com.ecomassistant.support.OpenAiWireMockStubs;
@@ -7,20 +9,17 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * Conversation memory behaviour of {@code GET /api/v1/search}, observed in the LLM request bodies.
- * The context is discarded afterwards because it is bound to this class's Qdrant container.
- */
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+/** Conversation memory behaviour of {@code GET /api/v1/search}, observed in the LLM requests. */
 class ConversationMemoryIntegrationTest extends AbstractQueryAnalysisIntegrationTest {
 
     @Autowired
@@ -59,22 +58,33 @@ class ConversationMemoryIntegrationTest extends AbstractQueryAnalysisIntegration
     }
 
     @Test
-    void refinementSeesPreviousTurn() throws Exception {
-        OpenAiWireMockStubs.stubChatCompletionForMarkerSequence(wireMock,
+    void budgetRefinementSeesPreviousTurn() throws Exception {
+        QueryAnalysis original = withBudget("warm winter jacket marker-one", 150);
+        QueryAnalysis refined = withBudget("warm winter jacket marker-two", 100);
+        OpenAiWireMockStubs.stubResponseForMarkerSequence(wireMock,
                 OpenAiWireMockStubs.QUERY_ANALYSIS_MARKER,
-                OpenAiWireMockStubs.queryAnalysisJson(allowed("warm winter jacket marker-one")),
-                OpenAiWireMockStubs.queryAnalysisJson(allowed("navy winter jacket marker-two")));
+                OpenAiWireMockStubs.queryAnalysisJson(original),
+                OpenAiWireMockStubs.queryAnalysisJson(refined));
         String id = UUID.randomUUID().toString();
 
-        search("warm winter jacket", id);
-        search("same but in navy", id);
+        search("warm winter jacket up to 150 euro", id);
+        mockMvc.perform(get("/api/v1/search")
+                        .param("message", "actually up to 100 euro")
+                        .param("conversationId", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.interpretation.priceConstraint.value").value(100));
 
         List<String> analysis = analysisBodies();
         assertThat(analysis).hasSize(2);
         String second = analysis.get(1);
-        assertThat(second).contains("warm winter jacket", "marker-one", "same but in navy");
-        assertThat(second.indexOf("warm winter jacket")).isLessThan(second.indexOf("same but in navy"));
-        assertThat(analysis.get(0)).doesNotContain("same but in navy");
+        assertThat(second).contains("warm winter jacket up to 150 euro", "marker-one", "actually up to 100 euro");
+        assertThat(second.indexOf("marker-one")).isLessThan(second.indexOf("actually up to 100 euro"));
+        assertThat(analysis.get(0)).doesNotContain("actually up to 100 euro");
+    }
+
+    private static QueryAnalysis withBudget(String query, int budget) {
+        return new QueryAnalysis(true, List.of(), List.of(), query, List.of(),
+                new PriceConstraint(PriceOperator.LESS_THAN_OR_EQUAL, BigDecimal.valueOf(budget)), false);
     }
 
     @Test
@@ -91,7 +101,7 @@ class ConversationMemoryIntegrationTest extends AbstractQueryAnalysisIntegration
     void rejectedTurnIsRemembered() throws Exception {
         QueryAnalysis rejected = new QueryAnalysis(false, List.of("contradictory request marker-rejection"),
                 List.of("a light summer jacket"), "", List.of(), null, false);
-        OpenAiWireMockStubs.stubChatCompletionForMarkerSequence(wireMock,
+        OpenAiWireMockStubs.stubResponseForMarkerSequence(wireMock,
                 OpenAiWireMockStubs.QUERY_ANALYSIS_MARKER,
                 OpenAiWireMockStubs.queryAnalysisJson(rejected),
                 OpenAiWireMockStubs.queryAnalysisJson(allowed("light summer jacket")));
@@ -106,10 +116,10 @@ class ConversationMemoryIntegrationTest extends AbstractQueryAnalysisIntegration
     @Test
     void exhaustedSchemaRetriesLeaveHistoryUnchanged() throws Exception {
         String invalid = "{\"allowed\":\"not-a-boolean\"}";
-        OpenAiWireMockStubs.stubChatCompletionForMarkerSequence(wireMock,
+        OpenAiWireMockStubs.stubResponseForMarkerSequence(wireMock,
                 OpenAiWireMockStubs.QUERY_ANALYSIS_MARKER,
                 OpenAiWireMockStubs.queryAnalysisJson(allowed("original jacket")),
-                invalid, invalid, invalid,
+                invalid, invalid,
                 OpenAiWireMockStubs.queryAnalysisJson(allowed("refined jacket")));
         String id = UUID.randomUUID().toString();
 
@@ -128,7 +138,7 @@ class ConversationMemoryIntegrationTest extends AbstractQueryAnalysisIntegration
 
     @Test
     void successfulSchemaRetryStoresOnlyTheOriginalMessageAndValidResponse() throws Exception {
-        OpenAiWireMockStubs.stubChatCompletionForMarkerSequence(wireMock,
+        OpenAiWireMockStubs.stubResponseForMarkerSequence(wireMock,
                 OpenAiWireMockStubs.QUERY_ANALYSIS_MARKER,
                 "{\"allowed\":\"not-a-boolean\"}",
                 OpenAiWireMockStubs.queryAnalysisJson(allowed("rain jacket")));

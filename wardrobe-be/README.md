@@ -5,10 +5,14 @@ repository root `Readme.md` for the overall project and how to run it locally.
 
 ## Cost controls and operations
 
-Every accepted search makes up to two LLM calls (query analysis, then product filtering)
-plus at most one schema-validation retry per call, so this service rate-limits searches
-and bounds the per-search LLM cost. The limits are configurable defaults in
-`application.yml` under `ecom.limits.*` and `ecom.llm.*`:
+An admitted search makes one query-analysis call to the configured chat provider. OpenAI GPT-6 Luna is the default.
+A completed response with invalid structured output may be retried once. The selected client applies its configured transport retry limit.
+Truncated or refused completions fail query analysis.
+An allowed search uses the existing OpenAI `text-embedding-3-small` model for Qdrant.
+
+To switch, set `spring.ai.model.chat` in `application.yml` to `openai` or `deepseek` and restart the backend. With Compose, rebuild the backend image after editing the YAML. Set `OPENAI_API_KEY` for embeddings and OpenAI chat. Set `DEEPSEEK_API_KEY` when using DeepSeek chat.
+
+Configure the limits in `application.yml`:
 
 | Property | Default | Meaning |
 |---|---|---|
@@ -16,7 +20,11 @@ and bounds the per-search LLM cost. The limits are configurable defaults in
 | `ecom.limits.per-hour` | 20 | accepted searches per client per hour |
 | `ecom.limits.daily-budget` | 300 | accepted searches per UTC day across all clients |
 | `ecom.limits.trusted-proxy-hops` | 1 | trusted `X-Forwarded-For` entries, counted from the right |
-| `ecom.llm.query-analysis-max-output-tokens` | 500 | max output tokens for the query-analysis call |
+| `spring.ai.openai.chat.max-completion-tokens` | 500 | maximum completion tokens per attempt, including reasoning |
+| `spring.ai.openai.chat.timeout` | 15s | chat request timeout |
+| `spring.ai.openai.chat.max-retries` | 10 | SDK retries per attempt (up to 11 sends, including the initial send) |
+| `spring.ai.deepseek.chat.max-tokens` | 500 | DeepSeek completion token cap |
+| `spring.ai.retry.max-attempts` | 10 | DeepSeek transport retries per attempt (up to 11 sends, including the initial send) |
 
 A rejected search returns HTTP 429 with a `Retry-After` header and a body
 `{"code":"RATE_LIMITED"|"DAILY_BUDGET_EXHAUSTED","message":"..."}` (see `openapi.yaml`).
@@ -26,19 +34,13 @@ A rejected search returns HTTP 429 with a `Retry-After` header and a body
 The per-client rate-limit buckets and the daily-budget counter live in process memory
 only. They reset to zero whenever the application restarts, and they are not shared
 between instances. Repeated restarts can therefore raise the day's effective ceiling; the
-per-client limits still apply after every restart. The hard spending cap is outside this
-application (below).
+per-client limits still apply after every restart. See the provider spending controls below.
 
 ### Required before the first public link (runbook step)
 
-The application-level limits are soft guards only — an application bug or a restart can
-bypass them. Set hard spending caps on both model providers before sending the first
-public link:
+Configure spending controls for the dedicated OpenAI project used by the demo.
+See [OpenAI project limits](https://help.openai.com/en/articles/9186755-managing-projects-in-the-api-platform)
+and [prepaid billing](https://help.openai.com/en/articles/8264644-setting-up-and-managing-prepaid-api-billing).
 
-1. **DeepSeek (chat):** top up a dedicated account with prepaid balance and leave
-   **auto-top-up off**, so spend is capped by the balance.
-2. **OpenAI (embeddings only):** create a dedicated project with a **monthly budget limit**
-   (or prepaid credit) and set **auto-recharge off**.
-3. Add **notification e-mails** for threshold alerts on each account.
-
-This is the only control that cannot be exceeded by an application bug or a restart.
+Use the same `products` collection when changing chat providers. For the live checks,
+see [provider migration verification](openspec/changes/migrate-to-openai-luna/verification.md).

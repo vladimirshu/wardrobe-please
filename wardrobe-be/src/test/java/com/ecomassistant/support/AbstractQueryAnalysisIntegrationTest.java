@@ -12,8 +12,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 /**
  * Base class for query-analysis integration tests: Testcontainers Qdrant, the
- * {@code FakeEmbeddingModel}, a WireMock server standing in for the DeepSeek chat
- * completions endpoint, and a MockMvc client to exercise {@code GET /api/v1/search}.
+ * {@code FakeEmbeddingModel}, a WireMock server standing in for the OpenAI Chat Completions
+ * endpoint, and a MockMvc client to exercise {@code GET /api/v1/search}.
  */
 @AutoConfigureMockMvc
 public abstract class AbstractQueryAnalysisIntegrationTest extends AbstractRetrievalIntegrationTest {
@@ -26,8 +26,9 @@ public abstract class AbstractQueryAnalysisIntegrationTest extends AbstractRetri
     }
 
     @DynamicPropertySource
-    static void deepSeekBaseUrl(DynamicPropertyRegistry registry) {
-        registry.add("spring.ai.deepseek.base-url", wireMock::baseUrl);
+    static void chatBaseUrl(DynamicPropertyRegistry registry) {
+        registry.add("spring.ai.openai.chat.base-url", () -> wireMock.baseUrl() + "/v1");
+        registry.add("spring.ai.openai.chat.max-retries", () -> "1");
     }
 
     @BeforeEach

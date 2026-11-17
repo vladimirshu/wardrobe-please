@@ -59,10 +59,9 @@ class ServiceHealthDuringStartupIntegrationTest {
                 "--spring.ai.vectorstore.type=qdrant",
                 "--spring.ai.vectorstore.qdrant.host=" + qdrant.getHost(),
                 "--spring.ai.vectorstore.qdrant.port=" + qdrant.getGrpcPort(),
-                "--spring.ai.model.chat=deepseek",
                 "--spring.ai.model.embedding=none",
-                "--spring.ai.deepseek.api-key=test-key",
-                "--spring.ai.deepseek.base-url=http://localhost:1",
+                "--spring.ai.openai.api-key=test-key",
+                "--spring.ai.openai.chat.base-url=http://localhost:1/v1",
                 "--ecom.import.sample-file=sampledata/test-apparel.csv"));
 
             try {

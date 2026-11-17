@@ -2,6 +2,7 @@ package com.ecomassistant.memory;
 
 import com.ecomassistant.exception.IllegalAssistantResponseException;
 import com.ecomassistant.guardrails.QueryAnalysis;
+import com.ecomassistant.guardrails.QueryAnalysisProviderStrategy;
 import com.networknt.schema.Schema;
 import com.networknt.schema.SchemaRegistry;
 import com.networknt.schema.SpecificationVersion;
@@ -27,9 +28,11 @@ public final class ValidatedQueryAnalysisMemoryAdvisor implements CallAdvisor {
     private static final Schema SCHEMA = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12)
             .getSchema(JSON.readTree(QueryAnalysis.jsonSchema()));
     private final ChatMemory memory;
+    private final QueryAnalysisProviderStrategy strategy;
 
-    public ValidatedQueryAnalysisMemoryAdvisor(ChatMemory memory) {
+    public ValidatedQueryAnalysisMemoryAdvisor(ChatMemory memory, QueryAnalysisProviderStrategy strategy) {
         this.memory = memory;
+        this.strategy = strategy;
     }
 
     @Override
@@ -64,7 +67,12 @@ public final class ValidatedQueryAnalysisMemoryAdvisor implements CallAdvisor {
                 || response.chatResponse().getResult().getOutput() == null) {
             throw new IllegalAssistantResponseException("Query analysis response is missing content", "empty response");
         }
-        Message assistant = response.chatResponse().getResult().getOutput();
+        var generation = response.chatResponse().getResult();
+        var assistant = generation.getOutput();
+        if (!"STOP".equalsIgnoreCase(generation.getMetadata().getFinishReason()) || strategy.isRefusal(assistant)) {
+            throw new IllegalAssistantResponseException(
+                    "Query analysis provider did not complete the analysis", "incomplete or refused");
+        }
         String content = assistant.getText();
         try {
             if (content == null || !SCHEMA.validate(JSON.readTree(content)).isEmpty()) {

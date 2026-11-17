@@ -16,7 +16,7 @@ RUN chmod +x gradlew
 COPY src/ src/
 
 # Build the application
-RUN ./gradlew build -x test --no-daemon
+RUN ./gradlew bootJar --no-daemon
 
 # Use Eclipse Temurin JRE 17 runtime for the final image
 FROM eclipse-temurin:17-jre

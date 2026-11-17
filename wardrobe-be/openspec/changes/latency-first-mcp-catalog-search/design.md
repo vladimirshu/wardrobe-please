@@ -2,7 +2,7 @@
 
 `QueryAnalyzer` already combines safety, apparel relevance, conversational rewrite, price extraction and negative examples in one chat completion. `DirectRetrievalAdvisor` returns retrieved products without a second completion. The retriever currently sends separate sequential embedding calls for negatives and the positive query when exclusions are present. Qdrant already applies the price constraint in the similarity query. Catalog sizes currently sit in a comma-separated payload string. The archived filtering and cost specs describe a second chat completion that the default code path no longer makes.
 
-The [shared chat](https://chatgpt.com/s/cx_6afb1429769c8191a1f79bf1b83c2fde) suggests bundling metadata filtering and semantic retrieval into one tool. [migrate-to-openai-luna](../migrate-to-openai-luna/proposal.md) must be complete first. This change extends its OpenAI Responses request with one provider-managed MCP tool. OpenAI can execute the tool and resume generation inside that request. Internal model stages and the embedding call contribute to end-to-end latency. [OpenAI remote MCP](https://developers.openai.com/api/docs/guides/tools-connectors-mcp)
+The [shared chat](https://chatgpt.com/s/cx_6afb1429769c8191a1f79bf1b83c2fde) suggests bundling metadata filtering and semantic retrieval into one tool. [migrate-to-openai-luna](../migrate-to-openai-luna/proposal.md) must be complete first. This change adds a Responses integration with one provider-managed MCP tool for the MCP search flow. OpenAI can execute the tool and resume generation inside that request. Internal model stages and the embedding call contribute to end-to-end latency. [OpenAI remote MCP](https://developers.openai.com/api/docs/guides/tools-connectors-mcp)
 
 ## Goals
 

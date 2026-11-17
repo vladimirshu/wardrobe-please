@@ -5,6 +5,7 @@ import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.junit.jupiter.Container;
@@ -13,6 +14,8 @@ import org.testcontainers.qdrant.QdrantContainer;
 
 @SpringBootTest
 @Testcontainers
+// Testcontainers restarts the inherited container for each class, changing its mapped port.
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 public abstract class AbstractRetrievalIntegrationTest {
 
     @Container
@@ -24,9 +27,8 @@ public abstract class AbstractRetrievalIntegrationTest {
         // Disambiguate auto-configuration because spring-ai-spring-boot-testcontainers
         // brings several vector-store and model auto-configurations onto the classpath.
         registry.add("spring.ai.vectorstore.type", () -> "qdrant");
-        registry.add("spring.ai.model.chat", () -> "deepseek");
         registry.add("spring.ai.model.embedding", () -> "none");
-        registry.add("spring.ai.deepseek.api-key", () -> "test-key");
+        registry.add("spring.ai.openai.api-key", () -> "test-key");
         registry.add("ecom.import.sample-file", () -> "sampledata/test-apparel.csv");
         // The rate limiter and daily budget are exercised by their own tests; keep them
         // effectively unlimited so unrelated integration tests never hit a 429.

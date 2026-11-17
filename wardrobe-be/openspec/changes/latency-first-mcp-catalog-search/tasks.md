@@ -12,7 +12,7 @@
 
 ## 3. Storefront orchestration
 
-- [ ] 3.1 Extend the Responses request with the single allowed MCP tool and instructions for safety, apparel relevance, query preparation and SKU selection. Preserve conversational refinements and interpretation.
+- [ ] 3.1 Implement the Responses request with the single allowed MCP tool and instructions for safety, apparel relevance, query preparation and SKU selection. Preserve conversational refinements and interpretation.
 - [ ] 3.2 Validate the final verdict, tool evidence, interpretation, matched SKU membership, uniqueness and exact constraints. Build product cards from verified catalog data in retrieval order.
 - [ ] 3.3 Enforce one outbound chat request and its deadline even on malformed output or provider/tool failures. Verify refused requests skip retrieval and that tool failure is distinct from a successful empty result.
 - [ ] 3.4 Verify injected instructions in candidate text cannot trigger extra retrieval and that raw tool traffic and candidate facts stay out of conversation history and diagnostic logs.

@@ -60,7 +60,6 @@ public class ProductsController {
                 chatMemory.clear(conversationId);
                 log.info("Conversation with id {} cleared", conversationId);
             }
-            log.info("User message: {}", message);
 
             SearchResult searchResult = productSearchService.searchProducts(message, conversationId);
             return new ChatResponseDto(searchResult.products(), searchResult.interpretation(), null);

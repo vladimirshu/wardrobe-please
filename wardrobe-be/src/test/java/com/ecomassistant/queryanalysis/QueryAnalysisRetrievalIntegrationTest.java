@@ -14,6 +14,7 @@ import tools.jackson.databind.json.JsonMapper;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.StreamSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -72,7 +73,7 @@ class QueryAnalysisRetrievalIntegrationTest extends AbstractQueryAnalysisIntegra
     }
 
     @Test
-    void queryAnalysisCarriesConfiguredOutputTokenLimit() throws Exception {
+    void queryAnalysisUsesStrictChatCompletionsRequest() throws Exception {
         OpenAiWireMockStubs.stubQueryAnalysis(wireMock, new QueryAnalysis(true, List.of(), List.of(), "rain jacket",
                 List.of(), null, false));
 
@@ -82,11 +83,37 @@ class QueryAnalysisRetrievalIntegrationTest extends AbstractQueryAnalysisIntegra
                 .andExpect(status().isOk());
 
         JsonNode queryAnalysisBody = bodyContaining(OpenAiWireMockStubs.QUERY_ANALYSIS_MARKER);
-        assertThat(queryAnalysisBody.get("max_tokens").asInt()).isEqualTo(500);
+        assertThat(queryAnalysisBody.path("model").asString()).isEqualTo("gpt-6-luna");
+        assertThat(queryAnalysisBody.path("reasoning_effort").asString()).isEqualTo("low");
+        assertThat(queryAnalysisBody.path("store").isBoolean()).isTrue();
+        assertThat(queryAnalysisBody.path("store").asBoolean()).isFalse();
+        assertThat(queryAnalysisBody.has("tools")).isFalse();
+        assertThat(queryAnalysisBody.has("temperature")).isFalse();
+        assertThat(queryAnalysisBody.path("max_completion_tokens").asInt()).isEqualTo(500);
+        assertThat(queryAnalysisBody.at("/messages/0/role").asString()).isEqualTo("system");
+        assertThat(queryAnalysisBody.at("/messages/1/role").asString()).isEqualTo("user");
+        assertThat(queryAnalysisBody.at("/messages/1/content").asString()).isEqualTo("show me a rain jacket");
+
+        JsonNode format = queryAnalysisBody.path("response_format");
+        assertThat(format.path("type").asString()).isEqualTo("json_schema");
+        assertThat(format.at("/json_schema/strict").asBoolean()).isTrue();
+        JsonNode schema = format.at("/json_schema/schema");
+        assertThat(schema.path("additionalProperties").asBoolean(true)).isFalse();
+        assertThat(StreamSupport.stream(schema.path("required").spliterator(), false).map(JsonNode::asString))
+                .containsExactlyInAnyOrderElementsOf(schema.path("properties").propertyNames());
+        JsonNode price = schema.at("/properties/priceConstraint/anyOf");
+        assertThat(price.at("/0/additionalProperties").asBoolean(true)).isFalse();
+        assertThat(StreamSupport.stream(price.at("/0/required").spliterator(), false).map(JsonNode::asString))
+                .containsExactlyInAnyOrder("operator", "value");
+        assertThat(price.at("/1/type").asString()).isEqualTo("null");
+
+        LoggedRequest request = wireMock.getAllServeEvents().get(0).getRequest();
+        assertThat(request.getUrl()).isEqualTo("/v1/chat/completions");
+        assertThat(request.getHeader("Authorization")).isEqualTo("Bearer test-key");
     }
 
     @Test
-    void typicalFullResponseFitsTheCap() throws Exception {
+    void fullAnalysisPreservesInterpretation() throws Exception {
         QueryAnalysis full = new QueryAnalysis(true, List.of(), List.of(), "waterproof hiking jacket",
                 List.of("wool", "down"), new PriceConstraint(PriceOperator.LESS_THAN, new BigDecimal("150")), true);
         OpenAiWireMockStubs.stubQueryAnalysis(wireMock, full);

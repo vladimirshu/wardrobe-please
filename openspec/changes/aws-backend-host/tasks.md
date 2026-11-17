@@ -1,9 +1,9 @@
 ## 1. Backend preparation
 
-- [ ] 1.1 Add `application-aws.yml` (INFO logging for root, `com.ecomassistant` and `org.springframework.ai`; Actuator exposure limited to health) and make the `SimpleLoggerAdvisor` bean conditional on the profile so no prompts are logged under `aws`
+- [ ] 1.1 Add `application-aws.yml` (INFO logging for root, `com.ecomassistant` and `org.springframework.ai`; Actuator exposure limited to health) and verify no prompts are logged under `aws`
 - [ ] 1.2 Add `ecom.origin-verify.secret` property (env `ECOM_ORIGIN_VERIFY_SECRET`) and a conditional `OriginVerifyFilter` (constant-time compare, 403 empty body)
 - [ ] 1.3 Tests: filter allows the correct header, rejects a missing/wrong header, is not registered without the secret; log test that the `aws` profile emits no message text
-- [ ] 1.4 Rewrite `eas-backend/Dockerfile` as multi-stage (Temurin 17 JDK build stage, Temurin 17 JRE runtime stage, non-root user, `-x test` build), build with `docker buildx --platform linux/arm64`, and verify the image starts locally against local Qdrant
+- [ ] 1.4 Configure a non-root user in `wardrobe-be/Dockerfile`, build with `docker buildx --platform linux/arm64`, and verify that the image starts against local Qdrant
 
 ## 2. Infrastructure definition
 

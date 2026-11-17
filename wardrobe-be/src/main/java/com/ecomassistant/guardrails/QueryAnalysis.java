@@ -34,9 +34,14 @@ public record QueryAnalysis(
         boolean sortByLowestPrice) {
 
     private static final String JSON_SCHEMA = createJsonSchema();
+    private static final String STRICT_JSON_SCHEMA = createStrictJsonSchema();
 
     public static String jsonSchema() {
         return JSON_SCHEMA;
+    }
+
+    public static String strictJsonSchema() {
+        return STRICT_JSON_SCHEMA;
     }
 
     private static String createJsonSchema() {
@@ -49,5 +54,19 @@ public record QueryAnalysis(
         alternatives.add(priceConstraint);
         alternatives.addObject().put("type", "null");
         return schema.toString();
+    }
+
+    private static String createStrictJsonSchema() {
+        var schema = (ObjectNode) JacksonUtils.getDefaultJsonMapper().readTree(JSON_SCHEMA);
+        schema.remove("$schema");
+        requireAllProperties(schema);
+        requireAllProperties((ObjectNode) schema.at("/properties/priceConstraint/anyOf/0"));
+        return schema.toString();
+    }
+
+    private static void requireAllProperties(ObjectNode schema) {
+        schema.put("additionalProperties", false);
+        var required = schema.putArray("required");
+        schema.path("properties").propertyNames().forEach(required::add);
     }
 }

@@ -4,7 +4,7 @@ Storefront search already uses one chat-model round trip before retrieval. It ca
 
 ## Prerequisite
 
-Complete and verify [migrate-to-openai-luna](../migrate-to-openai-luna/proposal.md) before implementing this change. It supplies the OpenAI Responses integration with GPT-6 Luna and low reasoning effort.
+Complete and verify [migrate-to-openai-luna](../migrate-to-openai-luna/proposal.md) before implementing this change. It supplies the GPT-6 Luna direct-search baseline. This change adds the Responses integration for provider-managed MCP.
 
 ## What Changes
 

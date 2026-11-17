@@ -2,24 +2,42 @@ spring:
   application:
     name: wardrobe-please
 
+  http:
+    clients:
+      connect-timeout: 2s
+      read-timeout: 15s
+
   # AI Configuration
   ai:
-    # Chat is served by DeepSeek; embeddings stay on OpenAI (DeepSeek has no embeddings API).
     model:
-      chat: deepseek
-    deepseek:
-      api-key: ${DEEPSEEK_API_KEY}
-      base-url: https://api.deepseek.com
-      chat:
-        options:
-          model: deepseek-flash
-          thinking:
-            type: disabled
+      chat: openai
+      embedding: openai
     openai:
       api-key: ${OPENAI_API_KEY}
+      chat:
+        base-url: https://api.openai.com/v1
+        model: gpt-6-luna
+        reasoning-effort: low
+        max-completion-tokens: 500
+        store: false
+        replay-reasoning-content: false
+        timeout: 15s
+        max-retries: 10
       embedding:
         options:
           model: text-embedding-3-small
+    deepseek:
+      api-key: ${DEEPSEEK_API_KEY:}
+      base-url: https://api.deepseek.com
+      chat:
+        model: deepseek-flash
+        max-tokens: 500
+        thinking:
+          type: disabled
+        response-format:
+          type: JSON_OBJECT
+    retry:
+      max-attempts: 10
     vectorstore:
       qdrant:
         collection-name: "products"
@@ -28,13 +46,6 @@ spring:
         use-tls: ${QDRANT_USE_TLS:false}
         api-key: ${QDRANT_API_KEY:}
         initialize-schema: true
-
-#    ollama:
-#      chat:
-#        options:
-#          model: qwen3:latest
-
-
 
 # Application Configuration
 ecom:
@@ -50,8 +61,6 @@ ecom:
     per-hour: 20
     daily-budget: 300
     trusted-proxy-hops: 1
-  llm:
-    query-analysis-max-output-tokens: 500
   import:
     sample-file: sampledata/apparel_catalog.csv
   assets:
@@ -64,9 +73,13 @@ ecom:
 
 logging:
   level:
+    # Spring AI includes provider response bodies in retry warnings and prompts in empty-response warnings.
+    org.springframework.ai.retry.autoconfigure.SpringAiRetryAutoConfiguration: ERROR
+    org.springframework.ai.deepseek.DeepSeekChatModel: ERROR
+    org.springframework.ai.openai.OpenAiChatModel: ERROR
     org:
       springframework:
-        ai: DEBUG
+        ai: INFO
     com:
       ecomassistant: DEBUG
 

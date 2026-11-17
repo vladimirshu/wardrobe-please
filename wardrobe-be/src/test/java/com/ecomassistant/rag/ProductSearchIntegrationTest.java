@@ -53,10 +53,9 @@ class ProductSearchIntegrationTest {
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.ai.vectorstore.type", () -> "qdrant");
-        registry.add("spring.ai.model.chat", () -> "deepseek");
         registry.add("spring.ai.model.embedding", () -> "none");
-        registry.add("spring.ai.deepseek.api-key", () -> "test-key");
-        registry.add("spring.ai.deepseek.base-url", wireMock::baseUrl);
+        registry.add("spring.ai.openai.api-key", () -> "test-key");
+        registry.add("spring.ai.openai.chat.base-url", () -> wireMock.baseUrl() + "/v1");
         registry.add("ecom.import.sample-file", () -> "sampledata/test-apparel.csv");
         // Keep the rate limiter and daily budget out of the way of these pipeline tests.
         registry.add("ecom.limits.per-minute", () -> "1000000");
