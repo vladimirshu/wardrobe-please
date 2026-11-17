@@ -1,6 +1,6 @@
 ## 1. Verify prerequisite and provider workflow
 
-- [ ] 1.1 Confirm that [migrate-to-openai-luna](../migrate-to-openai-luna/proposal.md) is implemented and verified. Use its DeepSeek and GPT-6 Luna direct-search baselines.
+- [ ] 1.1 Confirm that [migrate-to-openai-luna](../archive/2026-11-17-migrate-to-openai-luna/proposal.md) is implemented and verified. Use its DeepSeek and GPT-6 Luna direct-search baselines.
 - [ ] 1.2 Verify with an opt-in smoke test that one GPT-6 Luna Responses request at low reasoning effort can execute an authenticated MCP fixture and return both structured output and sufficient evidence to validate selected SKUs.
 
 ## 2. Shared retrieval and MCP interface

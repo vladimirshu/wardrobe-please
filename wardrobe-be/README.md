@@ -43,4 +43,4 @@ See [OpenAI project limits](https://help.openai.com/en/articles/9186755-managing
 and [prepaid billing](https://help.openai.com/en/articles/8264644-setting-up-and-managing-prepaid-api-billing).
 
 Use the same `products` collection when changing chat providers. For the live checks,
-see [provider migration verification](openspec/changes/migrate-to-openai-luna/verification.md).
+see [provider migration verification](openspec/changes/archive/2026-11-17-migrate-to-openai-luna/verification.md).

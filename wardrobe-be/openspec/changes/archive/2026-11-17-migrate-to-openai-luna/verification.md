@@ -8,9 +8,9 @@ The DeepSeek baseline and Luna smoke test are pending live opt-in. Run these che
 | --- | --- |
 | DeepSeek baseline | Commit `4375b7377a213f065e457ae64a615b1a480cc4ac`, `deepseek-flash`, thinking disabled |
 | OpenAI comparison | Record the migration commit, `gpt-6-luna`, low reasoning effort |
-| Versioned workload | [seed-search-cases.json](../../../src/test/resources/relevance/seed-search-cases.json), schema v1, 44 cases and 51 turns |
+| Versioned workload | [seed-search-cases.json](../../../../src/test/resources/relevance/seed-search-cases.json), schema v1, 44 cases and 51 turns |
 | Workload SHA-256 | `804fc13fe56e6f6b7d971bf1e084c5b107585bb7fe6357e7e3b5e1a60f8f4959` |
-| Catalog | [apparel_catalog.csv](../../../src/main/resources/sampledata/apparel_catalog.csv), 200 rows |
+| Catalog | [apparel_catalog.csv](../../../../src/main/resources/sampledata/apparel_catalog.csv), 200 rows |
 | Catalog SHA-256 | `eeca785fccea5301a9830213043b01727a8ecd2746e813f3408b60ba9fb455f6` |
 | Retrieval | `text-embedding-3-small`, 1536 dimensions, top K 10, threshold 0.15 |
 | Run policy | Two serial passes per provider, fresh conversation ID per case and pass, zero search warm-ups, same seeded catalog |
@@ -30,7 +30,7 @@ Disable provider transport retries for these runs and leave the existing schema 
      ./gradlew bootRun
    ```
 
-3. Send each turn to `GET /api/v1/search` as `message` and `conversationId`. Use the same ID through a case's turns. Record per-turn HTTP status, normalized interpretation, ordered SKUs and end-to-end time. Record timestamps, configuration, provider/model, catalog/workload revisions, p50/p95 and sample counts for successful requests, and error, timeout and empty-result counts. Record the query-analysis time and provider usage when available. Use the [relevance evaluation spec](../../specs/search-relevance-evaluation/spec.md) for result judgments.
+3. Send each turn to `GET /api/v1/search` as `message` and `conversationId`. Use the same ID through a case's turns. Record per-turn HTTP status, normalized interpretation, ordered SKUs and end-to-end time. Record timestamps, configuration, provider/model, catalog/workload revisions, p50/p95 and sample counts for successful requests, and error, timeout and empty-result counts. Record the query-analysis time and provider usage when available. Use the [relevance evaluation spec](../../../specs/search-relevance-evaluation/spec.md) for result judgments.
 
 ## Run the Luna smoke test
 
@@ -47,4 +47,4 @@ Record whether the account can use `gpt-6-luna`, the HTTP status, whether the va
 
 ## Deployment credentials
 
-The [AWS backend hosting plan](../../../../openspec/changes/aws-backend-host/design.md) supplies `OPENAI_API_KEY` from `/ecom/prod/openai-api-key`. Verify the deployed key's Chat Completions and Embeddings access before switching traffic. For rollback, retain the previous backend image and its DeepSeek secret reference.
+The [AWS backend hosting plan](../../../../../openspec/changes/aws-backend-host/design.md) supplies `OPENAI_API_KEY` from `/ecom/prod/openai-api-key`. Verify the deployed key's Chat Completions and Embeddings access before switching traffic. For rollback, retain the previous backend image and its DeepSeek secret reference.
