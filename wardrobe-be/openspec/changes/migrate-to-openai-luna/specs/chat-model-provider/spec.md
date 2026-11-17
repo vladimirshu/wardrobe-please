@@ -17,10 +17,3 @@ The provider integration SHALL preserve the existing analysis schema, verdict ha
 #### Scenario: Incomplete provider response
 - **WHEN** the provider terminates without a valid analysis
 - **THEN** the backend follows the bounded failure handling for query analysis and does not retrieve using partial output
-
-### Requirement: Embedding compatibility
-The backend SHALL continue to generate search and catalog embeddings with OpenAI `text-embedding-3-small` using the existing vector configuration.
-
-#### Scenario: Search after provider migration
-- **WHEN** an allowed search reaches vector retrieval
-- **THEN** its embedding is compatible with the vectors in the existing Qdrant collection
