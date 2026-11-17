@@ -19,6 +19,6 @@
 
 ## 4. Evaluation and rollout
 
-- [ ] 4.1 Compare the two-call GPT-6 Luna storefront and the complete OpenAI-managed MCP flow with the same optimized retriever. Use the historical baselines, direct retrieval without selection, and matched direct and MCP retrieval as controls. Record latency, errors, relevance, token use, and actual outbound request counts.
+- [ ] 4.1 Supply the MCP mode and shared retrieval settings to the [storefront search benchmark](../benchmark-storefront-search/tasks.md). Use the resulting paired comparison as rollout evidence.
 - [ ] 4.2 Record the agreed storefront p95 budget and verify latency, security, and relevance acceptance in an isolated deployment.
 - [ ] 4.3 Document catalog readiness, rollout to the single-request MCP flow, and operator rollback to direct search.

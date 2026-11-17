@@ -40,7 +40,7 @@ Return either a structured refusal or a successful interpretation with selected 
 
 ### Measure the protocol and the selection step separately
 
-Use the DeepSeek and GPT-6 Luna direct baselines from the provider migration to separate the provider switch from the MCP change. For the main comparison, use GPT-6 Luna for both workflows and give the two-call backend flow the same retriever, including embedding batching and exact size filters. Measure direct retrieval without selection as a control. Compare direct retrieval and MCP using identical prepared inputs to estimate transport overhead. Reuse the judged suite and include exclusion queries, sizes, empty results, follow-ups, and rejected requests. Freeze the catalog and workload; record tokens and actual outbound chat, MCP and embedding requests separately. Record provider-internal stage timings only when exposed.
+Use the [storefront search benchmark](../benchmark-storefront-search/design.md) to measure the current backend flow and the provider-managed MCP flow with shared retrieval settings. Use its paired latency, relevance and security report for the rollout decision.
 
 ## Migration Plan
 

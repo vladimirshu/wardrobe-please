@@ -79,6 +79,9 @@ public class ProductSearchService {
 
         SearchInterpretationDto interpretation = interpretation(chatClientResponse);
 
+        if (!documents.isEmpty() && log.isDebugEnabled()) {
+            log.debug("Product refinement selected validated SKUs: {}", products.stream().map(ProductDto::sku).toList());
+        }
         log.info("Returning {} products matching the search criteria", products.size());
         log.info("Product search completed in {} ms", (System.currentTimeMillis() - startTime));
         return new SearchResult(products, interpretation);

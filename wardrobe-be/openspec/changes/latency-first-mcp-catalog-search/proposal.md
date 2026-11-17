@@ -6,6 +6,8 @@ Storefront search uses one chat request to analyze the query and a second to fil
 
 Complete and verify [migrate-to-openai-luna](../archive/2026-11-17-migrate-to-openai-luna/proposal.md) before implementing this change. It supplies the GPT-6 Luna direct-search baseline. This change adds the Responses integration for provider-managed MCP.
 
+The [storefront search benchmark](../benchmark-storefront-search/proposal.md) owns the evaluation harness and comparison report. It can measure the current flow before MCP is ready.
+
 ## What Changes
 
 - Expose an authenticated, read-only MCP catalog search tool that reuses the storefront retriever.
@@ -18,7 +20,6 @@ Complete and verify [migrate-to-openai-luna](../archive/2026-11-17-migrate-to-op
 ### New Capabilities
 
 - `mcp-catalog-search` provides typed, read-only candidate retrieval to authenticated clients.
-- `search-latency-evaluation` establishes how to measure the direct and MCP paths.
 
 ### Modified Capabilities
 
@@ -29,4 +30,4 @@ Complete and verify [migrate-to-openai-luna](../archive/2026-11-17-migrate-to-op
 
 ## Impact
 
-Wardrobe backend search, Qdrant catalog payload and index, deployment access controls, and the opt-in evaluation harness. The existing storefront route and response fields remain compatible. Search interpretation can include an optional size field.
+Wardrobe backend search, Qdrant catalog payload and index, and deployment access controls. The existing storefront route and response fields remain compatible. Search interpretation can include an optional size field.
