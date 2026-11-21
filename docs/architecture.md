@@ -66,4 +66,4 @@ Product refinement logs the candidate count, response time across any schema ret
 
 The planned [provider-managed MCP search flow](../wardrobe-be/openspec/changes/latency-first-mcp-catalog-search/design.md), [AWS edge](../openspec/changes/aws-edge-hosting/design.md), and [wake-up flow](../openspec/changes/aws-control-plane/design.md) are documented in OpenSpec.
 
-The planned [storefront search benchmark](../wardrobe-be/openspec/changes/benchmark-storefront-search/design.md) uses this endpoint to evaluate the current flow and compare it with MCP once both are available.
+The [storefront search benchmark proposal](../wardrobe-be/openspec/changes/archive/2026-11-21-benchmark-storefront-search/design.md) was deferred and archived as unimplemented on 2026-11-21. Its proposed endpoint evaluation and MCP comparison remain future work.

@@ -1,3 +1,7 @@
+## Status
+
+Deferred and unimplemented as of 2026-11-21 at the user's request. The implementation changes were reverted. All nine tasks remain incomplete, and no real-provider baseline or paired comparison was run. This archived change preserves the proposal for possible future work. Its delta requirements have not been synced to the active specifications.
+
 ## Why
 
 Wardrobe, Please has judged search fixtures and a planned MCP search flow. We need a reproducible way to measure how the current two-call backend flow and the planned provider-managed MCP flow perform at the same load, with the same catalog and retrieval settings. We also need to measure which injection attempts succeed and how often the guardrail rejects legitimate searches.
@@ -8,7 +12,7 @@ Wardrobe, Please has judged search fixtures and a planned MCP search flow. We ne
 - Extend the existing judged evaluation to cover each turn through the HTTP endpoint and record where eligible products are lost.
 - Add a versioned guardrail suite with benign controls, direct and multi-turn injection, and indirect injection through catalog descriptions.
 - Reuse the seeded catalog. Add or correct catalog facts only when a required case lacks a fact-verified match, near miss or empty combination.
-- Support measuring the current flow immediately. Add the paired comparison when the [MCP search flow](../latency-first-mcp-catalog-search/proposal.md) and shared retrieval settings are available.
+- Support measuring the current flow immediately. Add the paired comparison when the [MCP search flow](../../latency-first-mcp-catalog-search/proposal.md) and shared retrieval settings are available.
 
 ## Capabilities
 

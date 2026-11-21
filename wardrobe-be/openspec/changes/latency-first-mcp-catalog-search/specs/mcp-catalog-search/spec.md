@@ -30,8 +30,12 @@ The tool SHALL return structured catalog facts with candidate SKUs in retrieval 
 - **THEN** the tool returns a dependency failure and the host does not interpret it as an empty catalog match
 
 ### Requirement: Storefront release criteria
-The model-driven MCP flow SHALL serve storefront search after rollout. Before switching traffic, the team SHALL record an acceptable p95 budget, demonstrate one actual outbound OpenAI request for the end-to-end MCP flow, and verify the existing search relevance acceptance criteria and the hard constraints in this change. The report from the `benchmark-storefront-search` change SHALL record p95 and error rates against the pre-change baseline and the accepted budget. A release SHALL meet the budget. A latency improvement claim SHALL require measured p95 below the baseline under equivalent load and verified relevance.
+The model-driven MCP flow SHALL serve storefront search after rollout. Before switching traffic, the team SHALL verify the workflow through deterministic integration tests and an opt-in real-provider smoke test in an isolated deployment. Verification SHALL cover authenticated MCP execution, exactly one actual outbound OpenAI request per admitted search, bounded retrieval, trusted candidate evidence, final response validation, conversation refinements, exact price and size constraints, material exclusions, lowest-price ordering, successful empty results and dependency failures.
 
-#### Scenario: MCP workflow exceeds the latency budget
-- **WHEN** the bounded MCP workflow passes relevance criteria but exceeds the agreed p95 budget
-- **THEN** the report records the regression and its stage breakdown and the MCP workflow requires further optimization before storefront rollout
+#### Scenario: Verified MCP workflow
+- **WHEN** the integration tests and real-provider smoke test confirm the complete workflow and its validation paths
+- **THEN** the MCP workflow is ready for storefront rollout with documented catalog readiness and operator rollback
+
+#### Scenario: Inconsistent tool evidence
+- **WHEN** the real-provider smoke test cannot establish that selected SKUs came from the successful MCP retrieval for the same search
+- **THEN** final response verification fails and storefront rollout remains pending until trusted evidence is available

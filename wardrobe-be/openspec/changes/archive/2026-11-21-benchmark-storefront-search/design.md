@@ -1,3 +1,7 @@
+## Status
+
+Deferred and unimplemented as of 2026-11-21 at the user's request. The implementation changes were reverted. All nine tasks remain incomplete, and no real-provider baseline or paired comparison was run. This archived change preserves the proposal for possible future work. Its delta requirements have not been synced to the active specifications.
+
 ## Comparison
 
 The primary comparison is the backend-orchestrated GPT-6 Luna flow (analysis, shared retrieval, selection) versus the GPT-6 Luna Responses workflow (analysis, provider-managed MCP retrieval, selection). Use the same model and reasoning effort, catalog and index revision, embedding model and batching, exact size and price semantics, candidate and output limits, workload, deployment region and load profile. Record endpoint and prompt revisions, token caps, retry policies and other differences that the APIs require. Run modes alternately in matched blocks with fresh conversation IDs and the same predeclared warm-up policy. If retrieval improvements are unavailable in the two-call flow, report the current baseline separately and withhold the matched comparison.

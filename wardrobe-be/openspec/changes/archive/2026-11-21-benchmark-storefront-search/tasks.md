@@ -1,3 +1,7 @@
+## Status
+
+Deferred and unimplemented as of 2026-11-21 at the user's request. The implementation changes were reverted. All nine tasks remain incomplete, and no real-provider baseline or paired comparison was run. This archived change preserves the proposal for possible future work. Its delta requirements have not been synced to the active specifications.
+
 ## 1. Workload and expected results
 
 - [ ] 1.1 Audit the existing catalog and 44 judged cases. Add paired boundaries, exact-size and price-order cases, and per-turn judgments wherever coverage is missing.

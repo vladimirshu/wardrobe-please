@@ -1,6 +1,6 @@
 ## 1. Verify prerequisite and provider workflow
 
-- [ ] 1.1 Confirm that [migrate-to-openai-luna](../archive/2026-11-17-migrate-to-openai-luna/proposal.md) is implemented and verified. Use its DeepSeek and GPT-6 Luna direct-search baselines.
+- [ ] 1.1 Confirm that [migrate-to-openai-luna](../archive/2026-11-17-migrate-to-openai-luna/proposal.md) is implemented and verified.
 - [ ] 1.2 Verify with an opt-in smoke test that one GPT-6 Luna Responses request at low reasoning effort can execute an authenticated MCP fixture and return both structured output and sufficient evidence to validate selected SKUs.
 
 ## 2. Shared retrieval and MCP interface
@@ -17,8 +17,8 @@
 - [ ] 3.3 Enforce one outbound chat request and its deadline even on malformed output or provider/tool failures. Verify refused requests skip retrieval and that tool failure is distinct from a successful empty result.
 - [ ] 3.4 Verify injected instructions in candidate text cannot trigger extra retrieval and that raw tool traffic and candidate facts stay out of conversation history and diagnostic logs.
 
-## 4. Evaluation and rollout
+## 4. Functional verification and rollout
 
-- [ ] 4.1 Supply the MCP mode and shared retrieval settings to the [storefront search benchmark](../benchmark-storefront-search/tasks.md). Use the resulting paired comparison as rollout evidence.
-- [ ] 4.2 Record the agreed storefront p95 budget and verify latency, security, and relevance acceptance in an isolated deployment.
+- [ ] 4.1 Verify the complete HTTP search workflow with deterministic integration tests covering allowed and rejected requests, conversation refinements, exact size and price filters, material exclusions, lowest-price ordering, empty results and dependency failures.
+- [ ] 4.2 Run an opt-in real-provider smoke test in an isolated deployment to verify authenticated MCP execution, one outbound chat request, trusted candidate evidence and final response validation.
 - [ ] 4.3 Document catalog readiness, rollout to the single-request MCP flow, and operator rollback to direct search.
