@@ -17,7 +17,7 @@ import org.testcontainers.qdrant.QdrantContainer;
 /**
  * Base class for search rate-limit and daily-budget integration tests: Testcontainers
  * Qdrant, the {@code FakeEmbeddingModel}, a WireMock server standing in for the OpenAI
- * Chat Completions endpoint, and MockMvc to exercise {@code GET /api/v1/search}. The
+ * Chat Completions endpoint, and MockMvc to exercise {@code POST /api/v1/search}. The
  * limits keep their configured defaults; subclasses override as needed.
  */
 @SpringBootTest

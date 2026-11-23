@@ -96,7 +96,7 @@ All requests are same-origin and relative. In development the Vite server
 proxies `/api/*` to `VITE_DEV_BACKEND_URL`; in production CloudFront routes the
 same paths to the backend.
 
-- `GET /api/v1/search?message=&conversationId=&clearMemory=` (search/refinement)
+- `POST /api/v1/search` with an `application/json` body containing `message`, `conversationId`, and `clearMemory` (search/refinement)
 - `GET /api/v1/products?limit=24[&category=][&cursor=]` (cursor-paged catalog)
 - `GET /api/v1/health` (in-hours readiness probe)
 - `GET /api/v1/control/up` (control-plane `{ state: "UP" | "STARTING" }`)

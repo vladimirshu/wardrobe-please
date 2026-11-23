@@ -12,3 +12,6 @@
 
 ### Docker Compose ###
 .env
+
+### Root-level Java analysis artifacts ###
+/*.class

@@ -25,7 +25,7 @@ The backend SHALL return the existing HTTP 500 `Illegal assistant response` for 
 For a successful search the backend SHALL return HTTP 200 with the existing `products`, `interpretation` and `suggestedPrompts` fields. The products SHALL be exactly the validated selection in retrieval order, or an empty list when a successful tool call yields no eligible selection. The interpretation SHALL come from validated analysis and `suggestedPrompts` SHALL be null.
 
 #### Scenario: Full customer happy path
-- **WHEN** a client calls `GET /api/v1/search` for a blue cotton jacket in size M under €200 with no wool
+- **WHEN** a client calls `POST /api/v1/search` for a blue cotton jacket in size M under €200 with no wool
 - **THEN** the backend analyzes the request, calls the catalog tool once with size and price constraints and wool as a negative example, validates the selection, and returns the selected catalog products and interpretation
 
 #### Scenario: Legacy route

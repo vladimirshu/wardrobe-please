@@ -17,12 +17,13 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static com.ecomassistant.support.SearchRequests.jsonSearch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Rate-limit behaviour of {@code GET /api/v1/search}: a sixth search within a minute is a
+ * Rate-limit behaviour of {@code POST /api/v1/search}: a sixth search within a minute is a
  * 429 with {@code RATE_LIMITED} and a {@code Retry-After}; invalid requests consume no
  * quota; a rejected request makes no LLM, embedding or vector call; health is not limited.
  */
@@ -41,10 +42,7 @@ class SearchRateLimitingIntegrationTest extends AbstractSearchLimitIntegrationTe
     }
 
     private static MockHttpServletRequestBuilder search(String client, String message) {
-        return get("/api/v1/search")
-                .header(ClientKeyResolver.X_FORWARDED_FOR, client)
-                .param("message", message)
-                .param("conversationId", java.util.UUID.randomUUID().toString());
+        return jsonSearch("message", message, "conversationId", java.util.UUID.randomUUID().toString()).header(ClientKeyResolver.X_FORWARDED_FOR, client);
     }
 
     @Test
@@ -67,10 +65,21 @@ class SearchRateLimitingIntegrationTest extends AbstractSearchLimitIntegrationTe
     @Test
     void invalidRequestsConsumeNoQuota() throws Exception {
         stubSuccessfulSearch();
+        long embedBefore = fakeEmbeddingModel.getEmbedCount();
         for (int i = 0; i < 10; i++) {
             mockMvc.perform(search("203.0.113.2", "jacket <script>"))
                     .andExpect(status().isBadRequest());
         }
+
+        for (int i = 0; i < 10; i++) {
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/search")
+                            .header(ClientKeyResolver.X_FORWARDED_FOR, "203.0.113.2")
+                            .contentType("application/json").content("{"))
+                    .andExpect(status().isBadRequest());
+        }
+        org.mockito.Mockito.verifyNoInteractions(retriever);
+        assertThat(wireMock.getAllServeEvents()).isEmpty();
+        assertThat(fakeEmbeddingModel.getEmbedCount()).isEqualTo(embedBefore);
 
         // Had the invalid requests consumed quota, the minute bucket would already be empty.
         for (int i = 0; i < 5; i++) {

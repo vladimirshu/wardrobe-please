@@ -1,4 +1,4 @@
-import backendCategories from '../../../eas-backend/src/main/resources/catalog/browsing-categories.json'
+import backendCategories from '../../../wardrobe-be/src/main/resources/catalog/browsing-categories.json'
 import { describe, expect, it } from 'vitest'
 import {
   CATEGORY_ROOTS,

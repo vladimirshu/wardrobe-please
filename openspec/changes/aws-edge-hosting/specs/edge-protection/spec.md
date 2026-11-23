@@ -14,23 +14,30 @@ The control Lambda Function URL SHALL be invocable only through the distribution
 - **WHEN** the Function URL is called without CloudFront's signature
 - **THEN** the call is rejected
 
-### Requirement: Edge rate limit for search
-Where the CloudFront plan includes WAF, the system SHALL apply a rate-based rule per client IP to `/api/v1/search` and answer blocked requests with HTTP 429 (not 403); where it does not, the system SHALL document that application-level limits are the only rate limiting.
+### Requirement: Default plan WAF protection
+The distribution SHALL retain the selected plan's default WAF protection and any required associated web ACL. The migration SHALL NOT introduce custom WAF rules, search-path rate rules, exclusions, browser challenges or custom block responses. Existing backend search limits SHALL remain unchanged. Edge blocks SHALL retain AWS's default response and SHALL NOT be required to return HTTP 429.
 
-#### Scenario: Burst from one client
-- **WHEN** one client exceeds the configured rate on `/api/v1/search`
-- **THEN** subsequent requests receive HTTP 429 until the rate falls
+#### Scenario: Deploying edge protection
+- **WHEN** the distribution is provisioned
+- **THEN** it uses the plan's default WAF protection without project-specific rules or custom responses
 
-#### Scenario: Health and control paths
-- **WHEN** a client calls `/api/v1/health` or `/api/v1/control/up`
-- **THEN** the search rate rule does not apply to those paths
+#### Scenario: Compatibility with application traffic
+- **WHEN** page loads, POST search and automated readiness probes are verified against the deployed distribution
+- **THEN** they work with default protection, or the incompatibility is recorded for a separate decision without silently adding custom WAF configuration or a paid upgrade
+
+### Requirement: Automated readiness probes
+Any enabled WAF rules SHALL permit control-Lambda requests to `/api/v1/health` without a browser challenge. CloudFront SHALL route those requests to EC2 and add the origin-verification header, without granting Lambda direct network access to EC2 or sharing the secret with it.
+
+#### Scenario: Control Lambda health check
+- **WHEN** the control Lambda requests the CloudFront HTTPS health URL
+- **THEN** WAF permits the automated probe and the request reaches the backend through the existing CloudFront-only network restriction
 
 ### Requirement: Security headers
-Responses of the default behavior SHALL include HSTS, `X-Content-Type-Options: nosniff`, a referrer policy, a Content-Security-Policy restricting sources to the site itself, and a rule forbidding framing.
+The default behavior SHALL use AWS-managed `SecurityHeadersPolicy` (ID `67f7725c-6f97-4210-82d7-5512b31e9d03`) without custom policies or overrides. Its managed header set SHALL be sufficient for this migration; a custom CSP, `frame-ancestors` directive or edge-function workaround SHALL NOT be required.
 
 #### Scenario: Page response
 - **WHEN** `index.html` is served
-- **THEN** the response carries the security headers
+- **THEN** the response carries the AWS-managed security headers, including `X-Frame-Options: SAMEORIGIN`; no CSP header is required
 
 ### Requirement: Secret handling
 The origin-verification secret SHALL be generated once, stored only in SSM Parameter Store and in the deployed distribution configuration, and SHALL NOT appear in the repository.

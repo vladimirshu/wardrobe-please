@@ -1,0 +1,4 @@
+# Application JVM limits shared by Docker, bootRun and direct packaged runs.
+# Collector selection and metaspace sizing use JVM defaults.
+-Xms64m
+-Xmx256m

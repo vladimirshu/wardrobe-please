@@ -10,7 +10,7 @@ description = "wardrobe-please"
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(25)
     }
 }
 
@@ -21,15 +21,15 @@ repositories {
 dependencies {
     implementation(platform("org.springframework.ai:spring-ai-bom:2.0.2"))
     implementation("org.springframework.ai:spring-ai-starter-model-openai")
-    implementation("org.springframework.ai:spring-ai-starter-model-deepseek")
+    // Optional chat provider: uncomment, rebuild, then select spring.ai.model.chat=deepseek.
+    // implementation("org.springframework.ai:spring-ai-starter-model-deepseek")
+    compileOnly("org.springframework.ai:spring-ai-deepseek") // optional adapter API; never packaged
 //    implementation("org.springframework.ai:spring-ai-starter-model-ollama")
     implementation("org.springframework.ai:spring-ai-starter-vector-store-qdrant")
     implementation("org.springframework.ai:spring-ai-rag")
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-restclient")
-    implementation("org.springframework.boot:spring-boot-starter-oauth2-client")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
-    implementation("org.springframework.boot:spring-boot-starter-aspectj")
     implementation("org.apache.commons:commons-csv:1.14.1")
 
     // Security and validation dependencies
@@ -55,4 +55,11 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+// Apply runtime limits to the application, independently of Gradle and test JVMs.
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+    jvmArgs(file("runtime-jvm.args").readLines()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && !it.startsWith("#") })
 }

@@ -52,6 +52,12 @@ Compose uses `wardrobe-please` as its project name. If you previously ran the st
 
 ### Individual services (development)
 
+The backend uses Java 25 LTS for compilation, tests and runtime. Install a Java 25
+JDK for local work; the Gradle toolchain resolver can provision one when needed.
+Docker builds use Temurin 25 JDK/JRE images. `bootRun` and Docker load the shared
+64–256 MiB heap limits; Compose caps the backend container at 640 MiB without
+swap. See [runtime memory and direct/IDE instructions](wardrobe-be/README.md#runtime-memory).
+
 ```bash
 docker compose up -d qdrant                     # vector DB only
 cd wardrobe-be && OPENAI_API_KEY=... ./gradlew bootRun   # API on http://localhost:8080

@@ -10,6 +10,10 @@ import com.ecomassistant.service.ProductSearchService;
 import com.ecomassistant.service.SearchResult;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.http.MediaType;
+
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -20,7 +24,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static com.ecomassistant.support.SearchRequests.jsonSearch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -48,56 +54,47 @@ class ProductsControllerTest {
 
     @Test
     void angleBracketsReturnBadRequestWithoutInvokingSearch() throws Exception {
-        mockMvc.perform(get("/api/v1/search")
-                        .param("message", "jacket <script>")
-                        .param("conversationId", "session_1"))
+        mockMvc.perform(jsonSearch("message", "jacket <script>", "conversationId", "session_1"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").exists());
 
-        verifyNoInteractions(productSearchService);
+        verifyNoInteractions(productSearchService, searchAdmission, chatMemory);
     }
 
     @Test
     void tooShortMessageReturnsBadRequestWithoutInvokingSearch() throws Exception {
-        mockMvc.perform(get("/api/v1/search")
-                        .param("message", "  a  ")
-                        .param("conversationId", "session_1"))
+        mockMvc.perform(jsonSearch("message", "  a  ", "conversationId", "session_1"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").exists());
 
-        verifyNoInteractions(productSearchService);
+        verifyNoInteractions(productSearchService, searchAdmission, chatMemory);
     }
 
     @Test
     void invalidConversationIdReturnsBadRequestWithoutInvokingSearch() throws Exception {
-        mockMvc.perform(get("/api/v1/search")
-                        .param("message", "blue jacket")
-                        .param("conversationId", "abc;drop"))
+        mockMvc.perform(jsonSearch("message", "blue jacket", "conversationId", "abc;drop"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.conversationId").exists());
 
-        verifyNoInteractions(productSearchService);
+        verifyNoInteractions(productSearchService, searchAdmission, chatMemory);
     }
 
     @Test
     void missingConversationIdReturnsBadRequestWithoutInvokingSearch() throws Exception {
-        mockMvc.perform(get("/api/v1/search")
-                        .param("message", "rain jacket"))
+        mockMvc.perform(jsonSearch("message", "rain jacket"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.conversationId").exists());
 
-        verifyNoInteractions(productSearchService);
+        verifyNoInteractions(productSearchService, searchAdmission, chatMemory);
     }
 
     @Test
     void emptyConversationIdReturnsBadRequestWithoutInvokingSearch() throws Exception {
-        mockMvc.perform(get("/api/v1/search")
-                        .param("message", "rain jacket")
-                        .param("conversationId", ""))
+        mockMvc.perform(jsonSearch("message", "rain jacket", "conversationId", ""))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.conversationId").exists());
 
-        verifyNoInteractions(productSearchService);
+        verifyNoInteractions(productSearchService, searchAdmission, chatMemory);
     }
 
     @Test
@@ -106,12 +103,64 @@ class ProductsControllerTest {
         when(productSearchService.searchProducts("rain jacket", uuid))
                 .thenReturn(new SearchResult(List.of(), null));
 
-        mockMvc.perform(get("/api/v1/search")
-                        .param("message", "rain jacket")
-                        .param("conversationId", uuid))
+        mockMvc.perform(jsonSearch("message", "rain jacket", "conversationId", uuid))
                 .andExpect(status().isOk());
 
         verify(productSearchService).searchProducts("rain jacket", uuid);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "", "{", "null", "[]", "{}",
+            "{\"message\":\"rain jacket\"}",
+            "{\"conversationId\":\"session_1\"}",
+            "{\"message\":\"rain jacket\",\"conversationId\":\"session_1\",\"clearMemory\":{}}" })
+    void invalidBodiesDoNotReachAdmissionOrSearch(String body) throws Exception {
+        mockMvc.perform(post("/api/v1/search").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(productSearchService, searchAdmission, chatMemory);
+    }
+
+    @Test
+    void unsupportedContentTypeDoesNotReachAdmissionOrSearch() throws Exception {
+        mockMvc.perform(post("/api/v1/search").contentType(MediaType.TEXT_PLAIN).content("rain jacket"))
+                .andExpect(status().isUnsupportedMediaType());
+
+        verifyNoInteractions(productSearchService, searchAdmission, chatMemory);
+    }
+
+    @Test
+    void getSearchReturns405WithoutInvokingSearch() throws Exception {
+        mockMvc.perform(get("/api/v1/search").param("message", "rain jacket")
+                        .param("conversationId", "session_1"))
+                .andExpect(status().isMethodNotAllowed());
+
+        verifyNoInteractions(productSearchService, searchAdmission, chatMemory);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "{}", "{\"message\":\"rain jacket\"}",
+            "{\"conversationId\":\"session_1\"}" })
+    void queryParametersCannotSupplyMissingBodyFields(String body) throws Exception {
+        mockMvc.perform(post("/api/v1/search").contentType(MediaType.APPLICATION_JSON).content(body)
+                        .param("message", "rain jacket").param("conversationId", "session_1"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(productSearchService, searchAdmission, chatMemory);
+    }
+
+    @Test
+    void bodyWinsOverQueryAndOmittedClearMemoryDefaultsToFalse() throws Exception {
+        when(productSearchService.searchProducts("blue jacket", "session_1"))
+                .thenReturn(new SearchResult(List.of(), null));
+
+        mockMvc.perform(jsonSearch("message", "  blue   jacket  ", "conversationId", "session_1")
+                        .param("message", "red jacket").param("conversationId", "other_session")
+                        .param("clearMemory", "true"))
+                .andExpect(status().isOk());
+
+        verify(productSearchService).searchProducts("blue jacket", "session_1");
+        verifyNoInteractions(chatMemory);
     }
 
     @Test
@@ -121,8 +170,7 @@ class ProductsControllerTest {
                         .param("conversationId", "session_1"))
                 .andExpect(status().isNotFound());
 
-        verifyNoInteractions(productSearchService);
-        verifyNoInteractions(chatMemory);
+        verifyNoInteractions(productSearchService, searchAdmission, chatMemory);
     }
 
     @Test

@@ -5,7 +5,7 @@ TBD - created by syncing change demo-cost-controls. Update Purpose after archive
 
 ## Requirements
 ### Requirement: Per-client search rate limit
-The system SHALL allow each client at most 5 accepted searches per minute and 20 accepted searches per hour on `GET /api/v1/search`, where both limits are configurable, and SHALL respond to a search above either limit with HTTP 429, a `Retry-After` header with the number of seconds until a search is allowed again, and a JSON body whose `code` is `RATE_LIMITED`.
+The system SHALL allow each client at most 5 accepted searches per minute and 20 accepted searches per hour on `POST /api/v1/search`, where both limits are configurable, and SHALL respond to a search above either limit with HTTP 429, a `Retry-After` header with the number of seconds until a search is allowed again, and a JSON body whose `code` is `RATE_LIMITED`.
 
 #### Scenario: Minute limit
 - **WHEN** one client sends 6 valid searches within one minute
@@ -54,7 +54,7 @@ The system SHALL identify a client by the viewer IP address that the CDN appende
 - **THEN** both are counted as one client
 
 ### Requirement: Health and non-search endpoints are not limited
-The system SHALL NOT apply the search limits to `GET /api/v1/health` or to any endpoint other than `GET /api/v1/search`.
+The system SHALL NOT apply the search limits to `GET /api/v1/health` or to any endpoint other than `POST /api/v1/search`.
 
 #### Scenario: Health during a limit
 - **WHEN** a client has exhausted its search limits and calls `GET /api/v1/health`

@@ -1,6 +1,5 @@
 package com.ecomassistant.service;
 
-import com.ecomassistant.config.MetricsConfig;
 import com.ecomassistant.config.EcomSearchProperties;
 import com.ecomassistant.dto.ProductDtoMapper;
 import com.ecomassistant.guardrails.SkuOutputGuardrail;
@@ -13,8 +12,6 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.EnableAspectJAutoProxy;
-import org.springframework.context.annotation.Import;
 
 import java.util.Map;
 
@@ -40,12 +37,23 @@ class ProductSearchTimingTest {
             when(response.context()).thenReturn(Map.of());
             when(client.prompt(any(org.springframework.ai.chat.prompt.Prompt.class))
                     .advisors(any(java.util.function.Consumer.class)).call().chatClientResponse())
-                    .thenReturn(response).thenThrow(new IllegalStateException("search failed"));
+                    .thenReturn(response).thenThrow(new IllegalStateException("search failed"))
+                    .thenThrow(new AssertionError("search error"));
 
             assertThat(service.searchProducts("shoes", "conversation").products()).isEmpty();
             assertThatThrownBy(() -> service.searchProducts("shoes", "conversation"))
                     .isInstanceOf(IllegalStateException.class).hasMessage("search failed");
 
+            assertThatThrownBy(() -> service.searchProducts("shoes", "conversation"))
+                    .isInstanceOf(AssertionError.class).hasMessage("search error");
+            assertThat(registry.get("product.search").tag("exception", "AssertionError").timer().count())
+                    .isEqualTo(1);
+            assertThat(registry.getMeters()).allSatisfy(meter -> {
+                assertThat(meter.getId().getTags()).extracting(io.micrometer.core.instrument.Tag::getKey)
+                        .containsExactlyInAnyOrder("class", "method", "exception");
+                assertThat(((io.micrometer.core.instrument.Timer) meter).totalTime(java.util.concurrent.TimeUnit.NANOSECONDS))
+                        .isPositive();
+            });
             assertThat(registry.get("product.search").tag("exception", "none").timer().count()).isEqualTo(1);
             assertThat(registry.get("product.search").tag("exception", "IllegalStateException").timer().count())
                     .isEqualTo(1);
@@ -53,8 +61,6 @@ class ProductSearchTimingTest {
     }
 
     @Configuration
-    @EnableAspectJAutoProxy
-    @Import(MetricsConfig.class)
     static class TestConfig {
         @Bean
         MeterRegistry meterRegistry() {
@@ -67,9 +73,9 @@ class ProductSearchTimingTest {
         }
 
         @Bean
-        ProductSearchService productSearchService(ChatClient chatClient) {
+        ProductSearchService productSearchService(ChatClient chatClient, MeterRegistry registry) {
             return new ProductSearchService(chatClient, mock(ProductDtoMapper.class), new SkuOutputGuardrail(),
-                    new EcomSearchProperties(10, 0.15f, 10));
+                    new EcomSearchProperties(10, 0.15f, 10), registry);
         }
     }
 }

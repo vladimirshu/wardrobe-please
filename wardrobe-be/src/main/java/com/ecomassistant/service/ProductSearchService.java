@@ -10,7 +10,8 @@ import com.ecomassistant.guardrails.QueryAnalysis;
 import com.ecomassistant.guardrails.SkuOutputGuardrail;
 import com.ecomassistant.rag.ProductFilterContextKeys;
 import com.ecomassistant.rag.ProductSelection;
-import io.micrometer.core.annotation.Timed;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
@@ -47,18 +48,36 @@ public class ProductSearchService {
     private final ProductDtoMapper productDtoMapper;
     private final SkuOutputGuardrail skuOutputGuardrail;
     private final EcomSearchProperties searchProperties;
+    private final MeterRegistry meterRegistry;
 
     public ProductSearchService(@Qualifier("productSearchChatClient") ChatClient productSearchChatClient,
             ProductDtoMapper productDtoMapper, SkuOutputGuardrail skuOutputGuardrail,
-            EcomSearchProperties searchProperties) {
+            EcomSearchProperties searchProperties, MeterRegistry meterRegistry) {
         this.productSearchChatClient = productSearchChatClient;
         this.productDtoMapper = productDtoMapper;
         this.skuOutputGuardrail = skuOutputGuardrail;
         this.searchProperties = searchProperties;
+        this.meterRegistry = meterRegistry;
     }
 
-    @Timed(value = "product.search", description = "Product search latency")
     public SearchResult searchProducts(String message, String conversationId) {
+        Timer.Sample sample = Timer.start(meterRegistry);
+        String exception = "none";
+        try {
+            return executeSearch(message, conversationId);
+        } catch (RuntimeException | Error failure) {
+            exception = failure.getClass().getSimpleName();
+            throw failure;
+        } finally {
+            sample.stop(Timer.builder("product.search")
+                    .description("Product search latency")
+                    .tags("class", ProductSearchService.class.getName(), "method", "searchProducts",
+                            "exception", exception)
+                    .register(meterRegistry));
+        }
+    }
+
+    private SearchResult executeSearch(String message, String conversationId) {
         long startTime = System.currentTimeMillis();
         Prompt prompt = Prompt.builder().messages(UserMessage.builder().text(message).build()).build();
         ChatClientResponse chatClientResponse = productSearchChatClient

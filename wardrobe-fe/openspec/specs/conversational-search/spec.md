@@ -4,11 +4,11 @@
 TBD - created by archiving change storefront-search-ui. Update Purpose after archive.
 ## Requirements
 ### Requirement: Backend access through the same-origin API path
-The browser SHALL call only its own origin, at `GET /api/v1/search` with the query parameters `message`, `conversationId` and `clearMemory`, SHALL use a relative URL so that no backend host is configured in the application, and SHALL handle the status code and JSON body returned by the backend.
+The browser SHALL call only its own origin, at `POST /api/v1/search` with an `application/json` body containing `message`, `conversationId` and `clearMemory` (default false when omitted), without search query parameters, SHALL use a relative URL so that no backend host is configured in the application, and SHALL handle the status code and JSON body returned by the backend.
 
 #### Scenario: Request shape
 - **WHEN** a visitor submits `rain jacket`
-- **THEN** the browser requests `/api/v1/search?message=rain%20jacket&conversationId=<uuid>&clearMemory=true` on the page's own origin
+- **THEN** the browser requests `POST /api/v1/search` with JSON `{"message":"rain jacket","conversationId":"<uuid>","clearMemory":true}` on the page's own origin
 
 #### Scenario: Development proxy
 - **WHEN** the application runs on the Vite dev server

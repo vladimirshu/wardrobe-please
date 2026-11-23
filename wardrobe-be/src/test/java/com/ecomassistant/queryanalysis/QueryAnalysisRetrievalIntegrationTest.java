@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.stream.StreamSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.ecomassistant.support.SearchRequests.jsonSearch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -33,9 +34,7 @@ class QueryAnalysisRetrievalIntegrationTest extends AbstractQueryAnalysisIntegra
         OpenAiWireMockStubs.stubQueryAnalysis(wireMock, new QueryAnalysis(true, List.of(), List.of(), "jacket",
                 List.of(), new PriceConstraint(PriceOperator.LESS_THAN_OR_EQUAL, new BigDecimal("150")), false));
 
-        MvcResult result = mockMvc.perform(get("/api/v1/search")
-                        .param("message", "I want a jacket up to 150 euro")
-                        .param("conversationId", java.util.UUID.randomUUID().toString()))
+        MvcResult result = mockMvc.perform(jsonSearch("message", "I want a jacket up to 150 euro", "conversationId", java.util.UUID.randomUUID().toString()))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -62,9 +61,7 @@ class QueryAnalysisRetrievalIntegrationTest extends AbstractQueryAnalysisIntegra
         OpenAiWireMockStubs.stubQueryAnalysis(wireMock, new QueryAnalysis(true, List.of(), List.of(), "rain jacket",
                 List.of(), null, false));
 
-        mockMvc.perform(get("/api/v1/search")
-                        .param("message", "show me a rain jacket")
-                        .param("conversationId", java.util.UUID.randomUUID().toString()))
+        mockMvc.perform(jsonSearch("message", "show me a rain jacket", "conversationId", java.util.UUID.randomUUID().toString()))
                 .andExpect(status().isOk());
 
         JsonNode queryAnalysisBody = bodyContaining(OpenAiWireMockStubs.QUERY_ANALYSIS_MARKER);
@@ -105,9 +102,7 @@ class QueryAnalysisRetrievalIntegrationTest extends AbstractQueryAnalysisIntegra
                 List.of("wool", "down"), new PriceConstraint(PriceOperator.LESS_THAN, new BigDecimal("150")), true);
         OpenAiWireMockStubs.stubQueryAnalysis(wireMock, full);
 
-        MvcResult result = mockMvc.perform(get("/api/v1/search")
-                        .param("message", "a waterproof hiking jacket under 150 euro, no wool or down, cheapest first")
-                        .param("conversationId", java.util.UUID.randomUUID().toString()))
+        MvcResult result = mockMvc.perform(jsonSearch("message", "a waterproof hiking jacket under 150 euro, no wool or down, cheapest first", "conversationId", java.util.UUID.randomUUID().toString()))
                 .andExpect(status().isOk())
                 .andReturn();
 

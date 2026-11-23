@@ -2,13 +2,14 @@ package com.ecomassistant.dto;
 
 import com.ecomassistant.validation.SafeSearchText;
 import com.ecomassistant.validation.TextNormalizer;
+import com.fasterxml.jackson.annotation.JsonCreator;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
-@NoArgsConstructor
+@NoArgsConstructor(onConstructor_ = @JsonCreator)
 @AllArgsConstructor
 public class ProductSearchRequestDto {
 

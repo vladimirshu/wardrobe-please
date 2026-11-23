@@ -14,7 +14,6 @@ import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
-import org.springframework.ai.deepseek.DeepSeekChatOptions;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.beans.factory.annotation.Value;
@@ -80,7 +79,7 @@ public class AiConfig {
         ChatOptions.Builder<?> options = switch (provider) {
             case "openai" -> OpenAiChatOptions.builder()
                     .maxCompletionTokens(maxOutputTokens).outputSchema(ProductSelection.SCHEMA);
-            case "deepseek" -> DeepSeekChatOptions.builder().maxTokens(maxOutputTokens);
+            case "deepseek" -> DeepSeekOptions.builder(maxOutputTokens);
             default -> throw new IllegalStateException("Unsupported storefront chat provider: " + provider);
         };
         return ChatClient.builder(chatModel)

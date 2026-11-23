@@ -27,7 +27,7 @@ When `ECOM_ORIGIN_VERIFY_SECRET` is set, the backend SHALL answer HTTP 403 with 
 - **THEN** requests are processed without the header
 
 ### Requirement: Secrets outside the image and the repository
-The system SHALL store the OpenAI API key, the Qdrant Cloud URL and API key, and the origin-verification secret as SSM Parameter Store SecureString parameters, SHALL grant the instance role read access to only that parameter path, and SHALL NOT include any of them in the container image, instance user data, repository files or application logs.
+The system SHALL store the OpenAI API key, the Qdrant Cloud API key and the origin-verification secret as SSM Parameter Store SecureString parameters, SHALL grant the instance role read access to only that parameter path, and SHALL NOT include any secret value in the container image, instance user data, repository files or application logs. The Qdrant hostname SHALL be non-secret deployment configuration; connection diagnostics MAY include it.
 
 #### Scenario: Start with secrets
 - **WHEN** the backend container starts on the instance
@@ -49,22 +49,31 @@ The host SHALL start the backend container automatically on every boot and SHALL
 - **THEN** it is restarted automatically
 
 ### Requirement: Production logging policy
-With the `aws` profile active, the backend SHALL log at INFO, SHALL NOT log customer prompts, LLM requests/responses or SQL, and the container log driver SHALL cap total log size so logs cannot exhaust the volume.
+The host SHALL activate the ordinary Spring Boot `aws` deployment profile through `SPRING_PROFILES_ACTIVE=aws`; this SHALL NOT require an AWS login profile or remote log service. With this profile active, the backend SHALL use INFO as its default logging level while preserving existing payload-sensitive Spring AI ERROR overrides, SHALL NOT log customer prompts, LLM requests/responses or SQL, and the container log driver SHALL cap total log size so logs cannot exhaust the volume.
 
 #### Scenario: Search under the aws profile
 - **WHEN** a search is processed with the `aws` profile
 - **THEN** the application log contains no message text or LLM payload
+
+#### Scenario: Provider error paths
+- **WHEN** the model returns an empty/malformed response or a provider call raises an exception under the aws profile
+- **THEN** logs contain sanitised operational error information without user message text, raw provider payloads or credentials
 
 #### Scenario: Long uptime
 - **WHEN** the instance runs for weeks under traffic
 - **THEN** container logs occupy no more than the configured cap
 
 ### Requirement: Memory-bounded runtime
-The container SHALL run with a capped JVM heap sized for a 1 GB instance and the instance SHALL have swap configured, so that a normal search workload does not cause the operating system to kill the process.
+The runtime SHALL use shared 64–256 MiB JVM heap limits and JVM-default collector
+selection, with no explicit metaspace cap. The backend container SHALL have a
+640 MiB memory limit and no swap access. A 1 GiB micro host SHALL be evaluated
+first, with small as fallback if total-host headroom/startup/reindex or load checks
+fail. The instance SHALL retain emergency host swap, which SHALL NOT count as
+normal workload capacity. Normal search SHALL NOT cause an OS/container OOM kill.
 
 #### Scenario: Search load
 - **WHEN** a sequence of searches runs for ten minutes
-- **THEN** the process stays running and resident memory stays below the instance memory
+- **THEN** the process stays running and container memory stays within the selected profile's cap, OS/Docker/SSM have adequate measured headroom, and the host has no sustained swap pressure
 
 ### Requirement: Administration without SSH
 The instance SHALL be administrable through SSM Session Manager and SSM Run Command, and IMDSv2 SHALL be required.

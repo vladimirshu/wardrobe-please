@@ -37,7 +37,7 @@ tags:
 
 paths:
   /api/v1/search:
-    get:
+    post:
       tags:
         - Search
       summary: Search the product catalog using natural language
@@ -50,54 +50,55 @@ paths:
         If the message is irrelevant to apparel search, confusing or
         contradictory, the request is rejected with HTTP 422 and the body
         carries `suggestedPrompts` so the client can ask the user to rephrase.
+        Invalid or absent JSON and invalid fields return 400 before admission;
+        unsupported content types return 415. Search fields never need URL parameters.
       operationId: findProducts
-      parameters:
-        - name: message
-          in: query
-          required: true
-          description: |
-            The user's natural-language search request (for example
-            `Show me a red waterproof jacket under 100 euro`).
+      requestBody:
+        required: true
+        description: Search fields are read only from JSON; query parameters are ignored.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message, conversationId]
+              properties:
+                message:
+                  description: |
+                    The user's natural-language search request (for example
+                    `Show me a red waterproof jacket under 100 euro`).
 
-            Validation (applied after Unicode NFKC normalization, trimming and
-            collapsing of repeated whitespace):
-            * 3 to 500 characters long.
-            * Only letters and combining marks of any script, digits,
-              whitespace and the characters `' ’ " - _ . , ! ? ( ) € $ £ ¥ % / & +`.
-            * Angle brackets and other characters are rejected with HTTP 400.
-          schema:
-            type: string
-            minLength: 3
-            maxLength: 500
-          example: Show me a red waterproof jacket under 100 euro
-        - name: conversationId
-          in: query
-          required: true
-          description: |
-            Client-generated conversation token (a random UUID, e.g. from
-            `crypto.randomUUID()`, is recommended). The assistant keeps
-            multi-turn context per token (e.g. "show me the same jacket but in
-            blue"); a token it has not seen starts an empty conversation. History
-            expires after 24 hours without a new turn and is held in backend
-            process memory only (lost on restart, not shared between instances).
-            Must be 1 to 50 characters and contain only ASCII letters, digits,
-            `-` and `_`.
-          schema:
-            type: string
-            minLength: 1
-            maxLength: 50
-            pattern: '^[a-zA-Z0-9_-]+$'
-          example: session_42-a
-        - name: clearMemory
-          in: query
-          required: false
-          description: |
-            When `true`, the assistant forgets the conversation history for the
-            given `conversationId` (and only that conversation) before processing
-            the message.
-          schema:
-            type: boolean
-            default: false
+                    Validation (applied after Unicode NFKC normalization, trimming and
+                    collapsing of repeated whitespace):
+                    * 3 to 500 characters long.
+                    * Only letters and combining marks of any script, digits,
+                      whitespace and the characters `' ’ " - _ . , ! ? ( ) € $ £ ¥ % / & +`.
+                    * Angle brackets and other characters are rejected with HTTP 400.
+                  type: string
+                  minLength: 3
+                  maxLength: 500
+                  example: Show me a red waterproof jacket under 100 euro
+                conversationId:
+                  description: |
+                    Client-generated conversation token (a random UUID, e.g. from
+                    `crypto.randomUUID()`, is recommended). The assistant keeps
+                    multi-turn context per token (e.g. "show me the same jacket but in
+                    blue"); a token it has not seen starts an empty conversation. History
+                    expires after 24 hours without a new turn and is held in backend
+                    process memory only (lost on restart, not shared between instances).
+                    Must be 1 to 50 characters and contain only ASCII letters, digits,
+                    `-` and `_`.
+                  type: string
+                  minLength: 1
+                  maxLength: 50
+                  pattern: '^[a-zA-Z0-9_-]+$'
+                  example: session_42-a
+                clearMemory:
+                  description: |
+                    When `true`, the assistant forgets the conversation history for the
+                    given `conversationId` (and only that conversation) before processing
+                    the message.
+                  type: boolean
+                  default: false
       responses:
         '200':
           description: Successful search.
@@ -130,7 +131,8 @@ paths:
           description: |
             Bad request. Returned either for input validation failures (the body
             maps each invalid field to its error message) or for an invalid
-            argument (the body has `error` and `message`).
+            argument (the body has `error` and `message`). Missing or malformed
+            JSON also returns 400, without a field-error body. No quota is consumed.
           content:
             application/json:
               schema:
@@ -155,6 +157,10 @@ paths:
                   value:
                     error: Invalid argument
                     message: price is not a valid number
+        '405':
+          description: GET search is not supported; no search is performed.
+        '415':
+          description: Unsupported content type; use application/json. No quota is consumed.
         '422':
           description: |
             The request was rejected by query analysis as irrelevant to apparel

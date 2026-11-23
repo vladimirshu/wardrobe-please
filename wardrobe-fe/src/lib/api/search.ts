@@ -46,13 +46,10 @@ export async function searchProducts(
   signal?.addEventListener('abort', onExternalAbort, { once: true })
 
   try {
-    const params = new URLSearchParams({
-      message: req.message,
-      conversationId: req.conversationId,
-      clearMemory: String(req.clearMemory),
-    })
-    const res = await fetch(apiUrl(`/api/v1/search?${params.toString()}`), {
-      method: 'GET',
+    const res = await fetch(apiUrl('/api/v1/search'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
       signal: timeout.signal,
     })
     return await toSearchOutcome(res)

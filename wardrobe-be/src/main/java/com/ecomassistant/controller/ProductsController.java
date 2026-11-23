@@ -10,7 +10,8 @@ import com.ecomassistant.service.ProductSearchService;
 import com.ecomassistant.service.SearchResult;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -44,9 +45,9 @@ public class ProductsController {
         this.catalogListingService = catalogListingService;
     }
 
-    @GetMapping("/search")
+    @PostMapping(value = "/search", consumes = "application/json")
     @ResponseBody
-    public ChatResponseDto findProducts(@Valid @ModelAttribute ProductSearchRequestDto searchRequest,
+    public ChatResponseDto findProducts(@Valid @RequestBody ProductSearchRequestDto searchRequest,
             HttpServletRequest request) {
 
         String message = searchRequest.getMessage();

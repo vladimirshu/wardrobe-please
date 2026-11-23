@@ -184,11 +184,13 @@ test('returning from an unknown category reloads All clothing', async ({ page })
 test('desktop keeps the composer and first row visible while refining or inspecting history', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await stubBackend(page)
-  const requests: URLSearchParams[] = []
+  const requests: { message: string; conversationId: string; clearMemory: boolean }[] = []
   let releaseRefinement!: () => void
   const refinement = new Promise<void>((resolve) => { releaseRefinement = resolve })
   await page.route('**/api/v1/search*', async (route) => {
-    const params = new URL(route.request().url()).searchParams
+    expect(route.request().method()).toBe('POST')
+    expect(new URL(route.request().url()).search).toBe('')
+    const params = route.request().postDataJSON()
     requests.push(params)
     if (requests.length === 2) await refinement
     const products = requests.length === 1 ? [puffer] : [
@@ -219,8 +221,8 @@ test('desktop keeps the composer and first row visible while refining or inspect
   await page.getByRole('button', { name: 'Back to search' }).click()
   await expect(composer).toHaveValue('with a hood')
   await expect(pane.getByRole('heading', { name: '3 matches' })).toBeVisible()
-  expect(requests.map((params) => params.get('clearMemory'))).toEqual(['true', 'false'])
-  expect(requests[1].get('conversationId')).toBe(requests[0].get('conversationId'))
+  expect(requests.map((params) => params.clearMemory)).toEqual([true, false])
+  expect(requests[1].conversationId).toBe(requests[0].conversationId)
   await page.getByRole('button', { name: 'New search' }).click()
   await expect(page.getByRole('heading', { name: "Describe it. We'll find it." })).toBeVisible()
 })
@@ -339,7 +341,7 @@ test('a newer search supersedes the pending response', async ({ page }) => {
   let release!: () => void
   const old = new Promise<void>((resolve) => { release = resolve })
   await page.route('**/api/v1/search*', async (route) => {
-    const message = new URL(route.request().url()).searchParams.get('message')
+    const { message } = route.request().postDataJSON()
     const isOld = message === 'old request'
     if (isOld) await old
     await route.fulfill({
@@ -412,7 +414,7 @@ test('search feedback remains available after inspecting a result snapshot', asy
   let searches = 0
   await page.route('**/api/v1/search*', (route) => {
     searches++
-    const message = new URL(route.request().url()).searchParams.get('message')
+    const { message } = route.request().postDataJSON()
     if (message === 'rejected request') return route.fulfill({ status: 422, json: { suggestedPrompts: [suggestion] } })
     return route.fulfill({
       json: { products: [{ ...puffer, title: message === 'first request' ? 'Earlier jacket' : 'Later jacket' }], interpretation },

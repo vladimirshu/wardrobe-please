@@ -1,14 +1,14 @@
 ## ADDED Requirements
 
 ### Requirement: Weekday opening window
-The system SHALL start the backend instance on the configured opening days at the configured opening time and stop it daily at the configured closing time. The checked-in application configuration SHALL provide the IANA time zone so both schedules follow daylight-saving changes. The current configuration opens Monday to Friday at 08:00 and closes daily at 22:00 in Europe/Berlin.
+The system SHALL start the backend instance on the configured opening days at the configured opening time and stop it on those same configured opening days at the configured closing time. The checked-in application configuration SHALL provide the IANA time zone so both schedules follow daylight-saving changes. The current configuration opens Monday to Friday at 08:00 and closes Monday to Friday at 22:00 in Europe/Berlin. Neither recurring start nor recurring stop SHALL run on Saturday or Sunday; the backend SHALL stay stopped by default at weekends, while visitor-triggered wake remains available.
 
 #### Scenario: Weekday morning
 - **WHEN** it is 08:00 on a Wednesday in the configured zone
 - **THEN** the instance is started if it is not already running
 
-#### Scenario: Evening
-- **WHEN** it is 22:00 on any day in the configured zone
+#### Scenario: Weekday evening
+- **WHEN** it is 22:00 on a configured opening day in the configured zone
 - **THEN** the instance is stopped if it is running
 
 #### Scenario: Weekend
@@ -37,6 +37,10 @@ When the instance is running outside the opening window, the system SHALL stop i
 #### Scenario: Wake again after a session
 - **WHEN** a visitor wakes the instance again after the 20-minute session ended
 - **THEN** a new 20-minute session starts from the new launch time
+
+#### Scenario: Weekend wake across 22:00
+- **WHEN** a visitor wakes the instance at 21:50 on Saturday or Sunday
+- **THEN** no scheduled 22:00 stop occurs and the off-hours sweeper stops it 20–25 minutes after its session started
 
 ### Requirement: No heartbeat dependency
 Starting and stopping SHALL NOT depend on any signal from visitors other than calls to the wake endpoint.

@@ -21,11 +21,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static com.ecomassistant.support.SearchRequests.jsonSearch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@org.junit.jupiter.api.condition.EnabledIf("deepSeekAvailable")
 class DeepSeekQueryAnalysisIntegrationTest extends AbstractQueryAnalysisIntegrationTest {
+    static boolean deepSeekAvailable() {
+        return org.springframework.util.ClassUtils.isPresent("org.springframework.ai.deepseek.DeepSeekChatModel",
+                DeepSeekQueryAnalysisIntegrationTest.class.getClassLoader());
+    }
+
     private static final String CHAT_PATH = "/chat/completions";
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final String ANALYSIS = """
@@ -58,12 +64,10 @@ class DeepSeekQueryAnalysisIntegrationTest extends AbstractQueryAnalysisIntegrat
                 .willReturn(aResponse().withHeader("Content-Type", "application/json")
                         .withBody(completion("stop", ANALYSIS.formatted(80)))));
 
-        mockMvc.perform(get("/api/v1/search").param("message", "rain jacket under 120")
-                        .param("conversationId", "deepseek-budget"))
+        mockMvc.perform(jsonSearch("message", "rain jacket under 120", "conversationId", "deepseek-budget"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.interpretation.priceConstraint.value").value(120));
-        mockMvc.perform(get("/api/v1/search").param("message", "under 80 instead")
-                        .param("conversationId", "deepseek-budget"))
+        mockMvc.perform(jsonSearch("message", "under 80 instead", "conversationId", "deepseek-budget"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.interpretation.priceConstraint.value").value(80));
 
@@ -112,8 +116,7 @@ class DeepSeekQueryAnalysisIntegrationTest extends AbstractQueryAnalysisIntegrat
     }
 
     private void expectAnalysisFailure() throws Exception {
-        mockMvc.perform(get("/api/v1/search").param("message", "rain jacket")
-                        .param("conversationId", "deepseek-failure"))
+        mockMvc.perform(jsonSearch("message", "rain jacket", "conversationId", "deepseek-failure"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.error").value("Illegal assistant response"));
         verifyNoInteractions(retriever);

@@ -15,11 +15,12 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.ecomassistant.support.SearchRequests.jsonSearch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** Conversation memory behaviour of {@code GET /api/v1/search}, observed in the LLM requests. */
+/** Conversation memory behaviour of {@code POST /api/v1/search}, observed in the LLM requests. */
 class ConversationMemoryIntegrationTest extends AbstractQueryAnalysisIntegrationTest {
 
     @Autowired
@@ -34,10 +35,7 @@ class ConversationMemoryIntegrationTest extends AbstractQueryAnalysisIntegration
     }
 
     private void search(String message, String conversationId, boolean clear, int expectedStatus) throws Exception {
-        mockMvc.perform(get("/api/v1/search")
-                        .param("message", message)
-                        .param("conversationId", conversationId)
-                        .param("clearMemory", String.valueOf(clear)))
+        mockMvc.perform(jsonSearch("message", message, "conversationId", conversationId, "clearMemory", clear))
                 .andExpect(status().is(expectedStatus));
     }
 
@@ -68,9 +66,7 @@ class ConversationMemoryIntegrationTest extends AbstractQueryAnalysisIntegration
         String id = UUID.randomUUID().toString();
 
         search("warm winter jacket up to 150 euro", id);
-        mockMvc.perform(get("/api/v1/search")
-                        .param("message", "actually up to 100 euro")
-                        .param("conversationId", id))
+        mockMvc.perform(jsonSearch("message", "actually up to 100 euro", "conversationId", id))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.interpretation.priceConstraint.value").value(100));
 

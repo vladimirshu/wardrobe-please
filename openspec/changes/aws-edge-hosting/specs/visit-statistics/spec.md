@@ -1,40 +1,22 @@
 ## ADDED Requirements
 
-### Requirement: Access logging
-The system SHALL write CloudFront standard access logs for all behaviors to a private S3 bucket, and SHALL expire log objects automatically after 90 days.
+### Requirement: Built-in traffic visibility
+The migration SHALL rely only on default CloudFront distribution metrics and console reports available without additional analytics charges. No analytics-specific enablement SHALL be required. The runbook SHALL identify Monitoring and Reports in the CloudFront console.
 
-#### Scenario: Request logged
-- **WHEN** a visitor loads the page
-- **THEN** a log record with timestamp, path, query string, status and user agent is stored in the log bucket
+#### Scenario: Inspect traffic
+- **WHEN** the operator views the deployed distribution after traffic data becomes available
+- **THEN** default metrics show requests, bytes transferred and aggregate error rates without access-log delivery or frontend tracking
 
-#### Scenario: Old logs
-- **WHEN** a log object is older than 90 days
-- **THEN** it is removed by the lifecycle rule
+### Requirement: No additional analytics infrastructure or charges
+The migration SHALL NOT enable access-log delivery, provision analytics log buckets or databases, add tracking scripts, implement custom analytics queries, enable additional paid metrics or custom dashboards, or require a paid plan upgrade for analytics. Application error logging and bounded backend operational logs are outside this analytics restriction.
 
-### Requirement: Campaign tags without extra requests
-Visits from a link containing `?ref=<tag>` SHALL be attributable to the tag from the logged query string of the page request, without any additional request from the SPA.
+#### Scenario: Deployment configuration
+- **WHEN** the infrastructure and frontend deployment are reviewed
+- **THEN** no analytics resources or tracking integrations are configured and additional paid CloudFront metrics remain disabled
 
-#### Scenario: Tagged link
-- **WHEN** a visitor opens `https://<site>/?ref=acme`
-- **THEN** the log record of the page request contains `ref=acme`
+### Requirement: Approximate traffic information only
+The documentation SHALL explain that request counts include assets, bots and probes, reports may be delayed, and built-in traffic information is not unique-visitor or session analytics. Campaign-tag attribution, exact search outcomes and actual wake-event counts SHALL NOT be required.
 
-### Requirement: Answerable questions
-The documentation SHALL show, with runnable queries over the logs, how to obtain: visits per day, visits per campaign tag, visits per country, searches per day by status, and wake calls per day, distinguishing likely bots by user agent.
-
-#### Scenario: Weekly review
-- **WHEN** the owner runs the documented queries on a week of logs
-- **THEN** they obtain the numbers listed above
-
-### Requirement: Zero service cost for analysis
-The documented analysis SHALL work with a local tool on downloaded log files, with an optional managed-query variant clearly marked as optional.
-
-#### Scenario: Local analysis
-- **WHEN** the owner downloads the log files and runs the local queries
-- **THEN** no AWS analytics service is required
-
-### Requirement: Privacy handling
-The log bucket SHALL be private, and the repository documentation SHALL state that client IP addresses are logged, for what purpose and for how long, and analysis outputs SHALL be aggregated without raw IP addresses.
-
-#### Scenario: Documentation
-- **WHEN** a reader opens the README privacy section
-- **THEN** it states what is logged, the purpose and the 90-day retention
+#### Scenario: Report unavailable or insufficient
+- **WHEN** a desired report is unavailable without an upgrade or cannot answer a product-analytics question
+- **THEN** default metrics remain sufficient for this migration and no paid feature or custom reporting pipeline is added

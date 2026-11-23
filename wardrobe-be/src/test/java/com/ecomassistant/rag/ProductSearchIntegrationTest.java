@@ -28,7 +28,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * End-to-end tests for the product-search pipeline: {@code GET /api/v1/search} over a real
+ * End-to-end tests for the product-search pipeline: {@code POST /api/v1/search} over a real
  * HTTP connection with Testcontainers Qdrant, the {@code FakeEmbeddingModel} and WireMock
  * stubs for both the query-analysis and product-filtering calls.
  */
@@ -79,7 +79,7 @@ class ProductSearchIntegrationTest {
                 "rain jacket", List.of(), null, false));
         OpenAiWireMockStubs.stubProductSelection(wireMock, "RAIN1", "RAIN1", "UNKNOWN");
 
-        HttpResult result = get("blue cotton jacket", java.util.UUID.randomUUID().toString());
+        HttpResult result = search("blue cotton jacket", java.util.UUID.randomUUID().toString());
 
         assertThat(result.status()).isEqualTo(HttpStatus.OK.value());
         JsonNode root = JSON_MAPPER.readTree(result.body());
@@ -117,7 +117,7 @@ class ProductSearchIntegrationTest {
                 "rain jacket", List.of(), null, true));
         OpenAiWireMockStubs.stubProductSelection(wireMock, "RAIN3", "RAIN2", "RAIN1");
 
-        HttpResult result = get("cheapest rain jacket", java.util.UUID.randomUUID().toString());
+        HttpResult result = search("cheapest rain jacket", java.util.UUID.randomUUID().toString());
 
         assertThat(result.status()).isEqualTo(HttpStatus.OK.value());
         JsonNode root = JSON_MAPPER.readTree(result.body());
@@ -131,7 +131,7 @@ class ProductSearchIntegrationTest {
         OpenAiWireMockStubs.stubResponseForMarker(wireMock, OpenAiWireMockStubs.PRODUCT_FILTER_MARKER,
                 "{\"skus\":[123]}");
 
-        HttpResult result = get("rain jacket", java.util.UUID.randomUUID().toString());
+        HttpResult result = search("rain jacket", java.util.UUID.randomUUID().toString());
 
         assertThat(result.status()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR.value());
         assertThat(JSON_MAPPER.readTree(result.body()).get("error").asText()).isEqualTo("Illegal assistant response");
@@ -144,7 +144,7 @@ class ProductSearchIntegrationTest {
                 List.of("not a clothing search"), List.of("winter jacket under 200 euro"), "", List.of(), null,
                 false));
 
-        HttpResult result = get("tell me a joke", java.util.UUID.randomUUID().toString());
+        HttpResult result = search("tell me a joke", java.util.UUID.randomUUID().toString());
 
         assertThat(result.status()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY.value());
         assertThat(requests()).hasSize(1);
@@ -155,7 +155,7 @@ class ProductSearchIntegrationTest {
         OpenAiWireMockStubs.stubQueryAnalysis(wireMock, new QueryAnalysis(true, List.of(), List.of(),
                 "zzzz nomatch", List.of(), null, false));
 
-        HttpResult result = get("zzzz nomatch", java.util.UUID.randomUUID().toString());
+        HttpResult result = search("zzzz nomatch", java.util.UUID.randomUUID().toString());
 
         assertThat(result.status()).isEqualTo(HttpStatus.OK.value());
         JsonNode root = JSON_MAPPER.readTree(result.body());
@@ -172,7 +172,7 @@ class ProductSearchIntegrationTest {
                 List.of("лёгкая летняя куртка", "тёплая зимняя куртка"), "", List.of(), null, false);
         OpenAiWireMockStubs.stubQueryAnalysis(wireMock, analysis);
 
-        HttpResult result = get("зимняя куртка для лета", java.util.UUID.randomUUID().toString());
+        HttpResult result = search("зимняя куртка для лета", java.util.UUID.randomUUID().toString());
 
         assertThat(result.status()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY.value());
         JsonNode root = JSON_MAPPER.readTree(result.body());
@@ -183,14 +183,13 @@ class ProductSearchIntegrationTest {
         assertThat(root.get("suggestedPrompts").get(1).asText()).isEqualTo("тёплая зимняя куртка");
     }
 
-    private HttpResult get(String message, String conversationId) {
+    private HttpResult search(String message, String conversationId) {
         return restClientBuilder.baseUrl("http://localhost:" + port)
             .build()
-            .get()
-            .uri(uriBuilder -> uriBuilder.path("/api/v1/search")
-                .queryParam("message", message)
-                .queryParam("conversationId", conversationId)
-                .build())
+            .post()
+            .uri("/api/v1/search")
+            .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+            .body(java.util.Map.of("message", message, "conversationId", conversationId))
             .exchange((request, response) -> new HttpResult(response.getStatusCode().value(), readBody(response)));
     }
 

@@ -1,30 +1,28 @@
 ## 1. Control Lambda
 
-- [ ] 1.1 Implement the control Lambda (Node.js, arm64, TypeScript): describe instance, start when stopped, probe `http://<EIP>:8080/api/v1/health` with 2 s timeout and `X-Origin-Verify`, return `{"state":...}` always with HTTP 200, no-cache headers
-- [ ] 1.2 Read the origin secret from SSM at cold start; read instance id, EIP and table name from environment variables; log AWS errors and map them to `STARTING`
-- [ ] 1.3 Write the wake event (day, ts, state, instance state before, `CloudFront-Viewer-Country`, `ref`, user-agent class) best effort; no IP, no raw user-agent
-- [ ] 1.4 Unit tests with mocked AWS SDK clients: stopped → start called + STARTING; pending/stopping → STARTING without start (stopping) ; running + 200 → UP; running + timeout/503 → STARTING; AWS error → 200 STARTING; DynamoDB failure does not change the response
+- [ ] 1.1 Implement the control Lambda (Node.js, arm64, TypeScript): describe instance, start when stopped, probe the configured HTTPS CloudFront `/api/v1/health` URL with a 2 s total timeout and redirects disabled, return `{"state":...}` always with HTTP 200, no-cache headers
+- [ ] 1.2 Read instance id and deployment-controlled `HEALTHCHECK_URL` from environment variables; grant no SSM read permission and supply no origin secret or EC2 public IP; missing/invalid health URL returns STARTING with a configuration error logged; log AWS errors and map them to `STARTING`
+- [ ] 1.3 Unit tests with mocked AWS SDK clients: stopped → start called + STARTING; pending/stopping → STARTING without start (stopping) ; running + 200 → UP; running + timeout/503/redirect → STARTING; assert probe uses configured CloudFront HTTPS URL without an origin secret; missing/invalid URL → STARTING; AWS error → 200 STARTING
 
 ## 2. Schedules and sweeper
 
-- [ ] 2.1 Define EventBridge Scheduler start (Mon-Fri 08:00 with the current configuration) and stop (daily 22:00) with universal targets for `StartInstances`/`StopInstances` and a dedicated role limited to the instance. Use the IANA time zone from the shared application configuration.
+- [ ] 2.1 Define EventBridge Scheduler start (Mon-Fri 08:00 with the current configuration) and stop (Mon-Fri 22:00 with the current configuration) with universal targets for `StartInstances`/`StopInstances` and a dedicated role limited to the instance. Use the IANA time zone from the shared application configuration.
 - [ ] 2.2 Implement the sweeper Lambda (every 5 minutes): stop when running, outside the window (same constants as the schedules, same zone) and uptime from `LaunchTime` is at least 20 minutes
-- [ ] 2.3 Unit tests for the window logic with a fixed clock: weekday inside/outside, weekend, DST change day, 19 vs 20 minutes of uptime, 21:50 start
+- [ ] 2.3 Unit tests for the window logic with a fixed clock: weekday inside/outside, no scheduled weekend start/stop, DST change day, 19 vs 20 minutes of uptime, weekday 21:50 start and weekend 21:50 wake continuing past 22:00 until its off-hours expiry
 - [ ] 2.4 Verify that `LaunchTime` changes after each stop/start cycle; if not, switch to a one-time schedule per wake (document in design)
-- [ ] 2.5 Read and validate `eas-frontend/src/config/opening-hours.json` during stack setup for Scheduler and the sweeper. Document rebuilding and redeploying the frontend alongside schedule changes.
+- [ ] 2.5 Read and validate `wardrobe-fe/src/config/opening-hours.json` during stack setup for Scheduler and the sweeper. Document rebuilding and redeploying the frontend alongside schedule changes.
 
-## 3. Data and wiring
+## 3. Wiring
 
-- [ ] 3.1 Create the `wake-events` table: key `day` / `ts#requestId`, provisioned 1 RCU / 1 WCU, TTL attribute (about 180 days); check the capacity against the current always-free allowance
-- [ ] 3.2 Create the Function URL with `AWS_IAM` auth and the least-privilege IAM roles from the design; export the Function URL for `aws-edge-hosting`
-- [ ] 3.3 Confirm the origin-secret parameter name and the instance id/EIP exports from `aws-backend-host`
+- [ ] 3.1 Create the Function URL with `AWS_IAM` auth and the least-privilege IAM roles from the design; export the Function URL for `aws-edge-hosting`
+- [ ] 3.2 Wire the instance id from `aws-backend-host`. Create the Function URL before the distribution, then set `HEALTHCHECK_URL=https://<distribution-domain>/api/v1/health` in a deployment step to avoid a circular infrastructure dependency; keep Lambda outside a VPC
 
 ## 4. Verification
 
-- [ ] 4.1 Calls from the CloudFront domain: stopped → STARTING, later UP, repeated calls safe, direct Function URL call rejected
-- [ ] 4.2 Observe one full weekday (08:00 start, 22:00 stop), one weekend wake with the 20-minute stop, and the DynamoDB events
+- [ ] 4.1 Calls from the CloudFront domain: stopped → STARTING, later UP via an uncached CloudFront health probe, repeated calls safe, direct Function URL and direct EC2 access rejected; verify Lambda has no origin secret/SSM access and automated probes pass WAF without browser challenges
+- [ ] 4.2 Observe one full weekday (08:00 start, 22:00 stop), a weekend with no scheduled start/stop and a visitor-triggered weekend wake stopped by the off-hours sweeper after 20–25 minutes
 
 ## 5. Runbook and cost
 
-- [ ] 5.1 Add to `infra/RUNBOOK.md`: how to disable the schedules, start/stop by hand, query wake events, change the window or zone
-- [ ] 5.2 Cost verification after the first week: Cost Explorer lines for Lambda, EventBridge, DynamoDB and EC2 hours versus the 24/7 ceiling; confirm Budgets alerts from `aws-backend-host` fire at the expected levels
+- [ ] 5.1 Add to `infra/RUNBOOK.md`: how to disable the schedules, start/stop by hand, change the window or zone
+- [ ] 5.2 Cost verification after the first week: Cost Explorer lines for Lambda, EventBridge and EC2 hours versus the 24/7 ceiling; confirm Budgets alerts from `aws-backend-host` fire at the expected levels

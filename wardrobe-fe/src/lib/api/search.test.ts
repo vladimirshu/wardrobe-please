@@ -34,9 +34,23 @@ afterAll(() => server.close())
 const req = { message: 'rain jacket', conversationId: 'abc', clearMemory: true }
 
 describe('searchProducts', () => {
+  it('sends search fields only as JSON to the bare search path', async () => {
+    let captured: Request | undefined
+    server.use(http.post('*/api/v1/search', ({ request }) => {
+      captured = request.clone()
+      return HttpResponse.json({ products: [product], interpretation, suggestedPrompts: null })
+    }))
+    await searchProducts(req)
+    expect(captured?.method).toBe('POST')
+    expect(new URL(captured!.url).pathname).toBe('/api/v1/search')
+    expect(new URL(captured!.url).search).toBe('')
+    expect(captured?.headers.get('Content-Type')).toBe('application/json')
+    expect(await captured?.json()).toEqual(req)
+  })
+
   it('parses a 200 success body', async () => {
     server.use(
-      http.get('*/api/v1/search', () =>
+      http.post('*/api/v1/search', () =>
         HttpResponse.json({ products: [product], interpretation, suggestedPrompts: null }),
       ),
     )
@@ -46,7 +60,7 @@ describe('searchProducts', () => {
 
   it('parses a 422 rejection with suggestions', async () => {
     server.use(
-      http.get('*/api/v1/search', () =>
+      http.post('*/api/v1/search', () =>
         HttpResponse.json(
           { products: null, interpretation: null, suggestedPrompts: ['A warm winter jacket'] },
           { status: 422 },
@@ -59,7 +73,7 @@ describe('searchProducts', () => {
 
   it('parses a 400 field error', async () => {
     server.use(
-      http.get('*/api/v1/search', () =>
+      http.post('*/api/v1/search', () =>
         HttpResponse.json({ message: 'Message contains unsupported characters' }, { status: 400 }),
       ),
     )
@@ -72,7 +86,7 @@ describe('searchProducts', () => {
 
   it('parses a 429 rate-limit with Retry-After', async () => {
     server.use(
-      http.get('*/api/v1/search', () =>
+      http.post('*/api/v1/search', () =>
         HttpResponse.json({ code: 'RATE_LIMITED', message: 'slow down' }, {
           status: 429,
           headers: { 'Retry-After': '30' },
@@ -90,7 +104,7 @@ describe('searchProducts', () => {
 
   it('parses a 429 daily-budget-exhausted without retry', async () => {
     server.use(
-      http.get('*/api/v1/search', () =>
+      http.post('*/api/v1/search', () =>
         HttpResponse.json({ code: 'DAILY_BUDGET_EXHAUSTED', message: 'quota' }, { status: 429 }),
       ),
     )
@@ -105,19 +119,19 @@ describe('searchProducts', () => {
 
   it('maps 5xx to serverError', async () => {
     server.use(
-      http.get('*/api/v1/search', () => HttpResponse.json({ error: 'boom' }, { status: 500 })),
+      http.post('*/api/v1/search', () => HttpResponse.json({ error: 'boom' }, { status: 500 })),
     )
     expect(await searchProducts(req)).toEqual({ kind: 'serverError' })
   })
 
   it('maps a network failure to network', async () => {
-    server.use(http.get('*/api/v1/search', () => HttpResponse.error()))
+    server.use(http.post('*/api/v1/search', () => HttpResponse.error()))
     expect(await searchProducts(req)).toEqual({ kind: 'network' })
   })
 
   it('maps an aborted request to aborted', async () => {
     server.use(
-      http.get('*/api/v1/search', () => HttpResponse.json({ products: [product], interpretation, suggestedPrompts: null })),
+      http.post('*/api/v1/search', () => HttpResponse.json({ products: [product], interpretation, suggestedPrompts: null })),
     )
     const controller = new AbortController()
     controller.abort()

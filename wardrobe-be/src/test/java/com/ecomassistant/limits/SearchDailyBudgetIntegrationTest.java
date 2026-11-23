@@ -15,12 +15,12 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static com.ecomassistant.support.SearchRequests.jsonSearch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Daily-budget behaviour of {@code GET /api/v1/search}: with a budget of two searches a
+ * Daily-budget behaviour of {@code POST /api/v1/search}: with a budget of two searches a
  * third valid search is rejected with {@code DAILY_BUDGET_EXHAUSTED} and a
  * {@code Retry-After} until the next UTC midnight.
  */
@@ -41,15 +41,13 @@ class SearchDailyBudgetIntegrationTest extends AbstractSearchLimitIntegrationTes
     }
 
     private static MockHttpServletRequestBuilder search(String client, String message) {
-        return get("/api/v1/search")
-                .header(ClientKeyResolver.X_FORWARDED_FOR, client)
-                .param("message", message)
-                .param("conversationId", java.util.UUID.randomUUID().toString());
+        return jsonSearch("message", message, "conversationId", java.util.UUID.randomUUID().toString()).header(ClientKeyResolver.X_FORWARDED_FOR, client);
     }
 
     @Test
     void thirdSearchExhaustsDailyBudget() throws Exception {
         stubSuccessfulSearch();
+        mockMvc.perform(search("203.0.113.9", "a")).andExpect(status().isBadRequest());
         mockMvc.perform(search("203.0.113.9", "rain jacket")).andExpect(status().isOk());
         mockMvc.perform(search("203.0.113.9", "rain jacket")).andExpect(status().isOk());
 

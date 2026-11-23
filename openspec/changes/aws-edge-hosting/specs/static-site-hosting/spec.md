@@ -8,7 +8,7 @@ The system SHALL serve the storefront and the backend API from one CloudFront do
 - **THEN** `index.html` is served from the S3 bucket
 
 #### Scenario: Search request
-- **WHEN** the SPA requests `/api/v1/search?...`
+- **WHEN** the SPA sends `POST /api/v1/search` with an application/json body
 - **THEN** the request is forwarded to the backend origin unchanged
 
 #### Scenario: Wake request
@@ -54,3 +54,10 @@ The system SHALL provide a documented, repeatable deployment that uploads the SP
 #### Scenario: Deploy
 - **WHEN** the operator runs the deploy step with a fresh build
 - **THEN** new files are in the bucket with their cache headers and the entry document is invalidated
+
+### Requirement: JSON POST forwarding
+The backend behavior SHALL allow POST, forward search JSON bodies and Content-Type unchanged, and disable search caching. This SHALL NOT introduce request-body logging or analytics tracking.
+
+#### Scenario: Search body through the edge
+- **WHEN** the SPA posts a JSON search through CloudFront
+- **THEN** the backend receives the original body and Content-Type and the response is not cached

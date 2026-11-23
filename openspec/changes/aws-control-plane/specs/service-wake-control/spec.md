@@ -8,7 +8,7 @@ The system SHALL expose `GET /api/v1/control/up`, which starts the backend insta
 - **THEN** the instance is started and the response is `{"state":"STARTING"}`
 
 #### Scenario: Instance running and ready
-- **WHEN** the endpoint is called while the instance is running and `GET /api/v1/health` on the origin answers 200 within 2 seconds
+- **WHEN** the endpoint is called while the instance is running and `GET /api/v1/health` through the project's CloudFront HTTPS domain answers 200 within 2 seconds
 - **THEN** the response is `{"state":"UP"}`
 
 #### Scenario: Instance running but not ready
@@ -16,14 +16,22 @@ The system SHALL expose `GET /api/v1/control/up`, which starts the backend insta
 - **THEN** the response is `{"state":"STARTING"}`
 
 ### Requirement: Readiness confirmation for frontend routing
-A valid UP response SHALL mean the running origin answered its readiness check successfully within the existing 2-second timeout. The frontend SHALL be able to use this response to open the shop without an additional backend health request. Calls outside opening hours SHALL remain valid even when the instance is already running and ready; they SHALL NOT restart it or extend its off-hours session.
+A valid UP response SHALL mean the running origin answered its readiness check through the project's CloudFront HTTPS domain within a 2-second total timeout. The probe URL SHALL be deployment-controlled, SHALL route to EC2 rather than the control Lambda, and SHALL NOT follow redirects. Health responses and 5xx errors SHALL NOT be cached. Lambda SHALL NOT connect directly to EC2 or receive the origin-verification secret; CloudFront SHALL add that header on the backend hop. The frontend SHALL be able to use this response to open the shop without an additional backend health request. Calls outside opening hours SHALL remain valid even when the instance is already running and ready; they SHALL NOT restart it or extend its off-hours session.
 
 #### Scenario: Off-hours visitor finds an already ready instance
 - **WHEN** a visitor calls the endpoint outside opening hours and the running origin passes its readiness check
 - **THEN** the endpoint returns UP without restarting the instance or changing the session start time
 
+#### Scenario: Probe follows the protected backend route
+- **WHEN** Lambda checks readiness for a running instance
+- **THEN** it requests the configured CloudFront HTTPS health URL without an origin secret, CloudFront forwards the request to EC2 with the secret header, and the existing CloudFront-only security group admits the request
+
+#### Scenario: Edge failure or invalid probe configuration
+- **WHEN** the health URL is missing or invalid, or CloudFront returns a redirect, non-200 response or exceeds the probe timeout
+- **THEN** control returns STARTING and does not fall back to direct EC2 access
+
 ### Requirement: Idempotent and repeatable
-Repeated calls SHALL be safe: calling the endpoint while the instance is pending, running or already being started MUST NOT cause an error, a second start or any other side effect besides a wake event record.
+Repeated calls SHALL be safe: calling the endpoint while the instance is pending, running or already being started MUST NOT cause an error, a second start or extend the running session. No analytics event SHALL be persisted.
 
 #### Scenario: Concurrent visitors
 - **WHEN** several visitors call the endpoint at the same time while the instance is stopped
@@ -48,7 +56,7 @@ Responses of the endpoint SHALL NOT be cached by CloudFront or by browsers.
 - **THEN** the second response reflects the new state
 
 ### Requirement: Restricted invocation
-The Lambda Function URL SHALL be invocable only through the project's CloudFront distribution; direct calls to the Function URL SHALL be rejected, and the Lambda SHALL have permissions limited to this instance, its origin-secret parameter and the wake-events table.
+The Lambda Function URL SHALL be invocable only through the project's CloudFront distribution; direct calls to the Function URL SHALL be rejected, and the Lambda SHALL have only the EC2 describe/start permissions it needs, with no SSM read permission. Instance-start permission SHALL be scoped to the configured instance. No analytics-table write permission SHALL be granted.
 
 #### Scenario: Direct call
 - **WHEN** a client calls the Function URL directly without CloudFront

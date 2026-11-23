@@ -8,7 +8,7 @@ This Mermaid sequence diagram uses C4 container boundaries to show a search requ
 sequenceDiagram
     box rgb(225, 237, 252) Wardrobe, Please
         participant Shop as React storefront
-        participant API as Spring Boot API
+        participant API as Spring Boot API (Java 25)
     end
     box rgb(233, 237, 241) Backend dependencies
         participant Chat as Chat provider
@@ -16,9 +16,12 @@ sequenceDiagram
         participant DB as Qdrant
     end
 
-    Shop->>API: GET /api/v1/search
-    API->>API: Normalize and validate the message and conversation ID
-    break Invalid input
+    Shop->>API: POST /api/v1/search (JSON body)
+    break Unsupported content type
+        API-->>Shop: 415 Unsupported Media Type
+    end
+    API->>API: Bind JSON body only, normalize and validate the message and conversation ID
+    break Missing or malformed JSON, or invalid fields
         API-->>Shop: 400 Bad Request
     end
 
@@ -27,7 +30,7 @@ sequenceDiagram
         API-->>Shop: 429 Too Many Requests
     end
 
-    Note over Chat: GPT-6 Luna by default<br/>DeepSeek Flash when configured
+    Note over Chat: GPT-6 Luna by default<br/>DeepSeek Flash with optional runtime
     API->>Chat: Analyze apparel intent using the message and recent conversation
     Chat-->>API: Structured decision, search terms and constraints
 
@@ -66,4 +69,35 @@ Product refinement logs the candidate count, response time across any schema ret
 
 The planned [provider-managed MCP search flow](../wardrobe-be/openspec/changes/latency-first-mcp-catalog-search/design.md), [AWS edge](../openspec/changes/aws-edge-hosting/design.md), and [wake-up flow](../openspec/changes/aws-control-plane/design.md) are documented in OpenSpec.
 
+**Planned AWS edge protection:** use AWS-managed `SecurityHeadersPolicy` and the selected CloudFront plan’s default WAF protection. No custom response-header policy, CSP, WAF rules, path exclusions or block responses are planned. Existing backend search rate limits remain unchanged; edge blocks retain AWS’s default response. Verify normal page, POST search and automated readiness requests against that default protection.
+
+**Planned AWS traffic visibility:** use default CloudFront metrics and available console reports only, with no additional analytics charges or configuration. No access-log delivery, analytics buckets/databases, wake-event records, tracking scripts or custom reporting pipeline are planned. These reports provide approximate request/traffic information, not visitor sessions or campaign attribution. Backend operational logging remains separate.
+
 The [storefront search benchmark proposal](../wardrobe-be/openspec/changes/archive/2026-11-21-benchmark-storefront-search/design.md) was deferred and archived as unimplemented on 2026-11-21. Its proposed endpoint evaluation and MCP comparison remain future work.
+
+**Search transport:** [search-request-body](../openspec/changes/search-request-body/design.md) uses POST with an `application/json` body containing `message`, `conversationId` and optional `clearMemory` (default false). Query parameters cannot supply or override these fields. GET search returns 405 without admission; invalid or missing JSON returns 400 and unsupported content types return 415 before admission or downstream calls. Deploy the storefront and backend together.
+
+Supported storefront requests keep search fields out of request URLs and URL access logs. This does not redact arbitrary caller-supplied query parameters or explicitly enabled body logging. No request-body logging is introduced. CloudFront POST forwarding and WAF verification remain planned in the AWS edge change.
+
+**Planned search timeout budget:** [search-timeout-budget](../openspec/changes/search-timeout-budget/design.md) retains the frontend’s 30-second timeout, introduces one 25-second backend deadline, caps provider attempts at 5 seconds/remaining time and shares at most three extra attempts across transport and schema retries. Expiry cancels local downstream work and returns a generic 504; startup indexing and health/wake probes keep their separate timeouts. This behavior is not yet implemented.
+
+**Backend runtime dependencies:** [reduce-backend-memory](../openspec/changes/reduce-backend-memory/design.md) removes unused OAuth2 login dependencies and AspectJ. `ProductSearchService` records `product.search` timing in a `finally` block for successful and exceptional completion, with class/method/exception tags only. Spring Security, validation, readiness and OpenAI embeddings remain. DeepSeek's starter is commented out; provider-specific options live in an isolated compile-only adapter. An early configuration check explains how to uncomment/rebuild/select DeepSeek when its runtime is absent, before chat-dependent beans are created. Re-enabling DeepSeek chat still uses OpenAI embeddings.
+
+[Local verification findings](../openspec/changes/reduce-backend-memory/verification.md)
+are summarized in OpenSpec. The nano experiments are retired; current runtime
+limits are documented below. AWS total-host and real-provider validation remain pending.
+
+**Planned AWS schedule:** both recurring start (08:00) and stop (22:00) run Monday to Friday in Europe/Berlin. No recurring start or stop runs at weekends; visitor-triggered weekend wake and off-hours shutdown after 20–25 minutes remain available.
+
+**Planned deployment logging configuration:** `application-aws.yml` is an ordinary Spring Boot profile activated with `SPRING_PROFILES_ACTIVE=aws`, not an AWS login profile or remote logging service. It retains payload-sensitive logger restrictions and requires verification of normal and provider-error paths.
+
+**Java runtime:** [upgrade-backend-java-25](../openspec/changes/upgrade-backend-java-25/design.md) aligns compilation/tests on Java 25 LTS and Docker builder/runtime on Temurin 25. It replaces the initial Java 26 proposal. [Upgrade verification](../openspec/changes/upgrade-backend-java-25/verification.md) remain separate from AWS host acceptance. Earlier Java 17 cleanup measurements are historical; rollback requires the retained Java 17 artifact/image.
+
+
+**Runtime memory:** `wardrobe-be/runtime-jvm.args` supplies `-Xms64m -Xmx256m`
+to Docker and bootRun; direct/IDE launches load it explicitly. GC selection and
+metaspace sizing use JVM defaults. The single Compose profile caps the backend
+at 640 MiB without container swap. Frontend/local Qdrant use additional memory.
+The planned AWS deployment uses remote Qdrant and starts with micro (1 GiB), with
+small as fallback; total-host headroom and real-provider load remain unverified.
+Nano experiment tooling and the alternate Compose profile have been removed.
