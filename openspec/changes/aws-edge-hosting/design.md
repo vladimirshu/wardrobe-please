@@ -39,7 +39,7 @@ Block all public access; the bucket policy admits only this distribution. The de
 Vite emits content-hashed files under `assets/`; they are uploaded with `Cache-Control: public, max-age=31536000, immutable`. `index.html` and images without hashes are uploaded with a short `max-age` (for example 60 s); the deploy invalidates `/index.html`. Images referenced as `/images/...` (`ecom.assets.base-url` default) are cached for a day.
 
 **4. Fast failure for a stopped origin.**
-The `/api/v1/*` origin uses connection attempts = 1 and connection timeout of 2-3 seconds, response timeout allowing the planned [25-second backend search deadline](../search-timeout-budget/design.md) to return its response within the frontend’s 30-second window under normal network conditions; verify the effective CloudFront setting instead of assuming a provider timeout bounds the whole search. Custom error responses for 502/503/504 under `/api/*` use error caching minimum TTL 0, otherwise a cached 504 (assumed 10 s default) would be served just after the instance becomes ready.
+The `/api/v1/*` origin uses connection attempts = 1 and connection timeout of 2-3 seconds, response timeout of 30 seconds allowing the implemented [25-second backend search deadline](../archive/2026-11-23-search-timeout-budget/design.md) to return its response within the frontend’s 30-second window under normal network conditions; verify the effective CloudFront setting instead of assuming a provider timeout bounds the whole search. Custom error responses for 502/503/504 under `/api/*` use error caching minimum TTL 0, otherwise a cached 504 (assumed 10 s default) would be served just after the instance becomes ready.
 
 **5. Origin lock-down in layers.**
 (a) Security group allows only the managed CloudFront origin-facing prefix list (`aws-backend-host`); (b) CloudFront adds `X-Origin-Verify: <secret>` and the backend rejects other requests (a prefix list admits any distribution); (c) the Function URL uses IAM auth with OAC. The secret is generated once, stored in SSM and passed to CloudFront as a deploy-time value; rotation is a runbook procedure.
@@ -66,7 +66,7 @@ When the owner decides on a domain: ACM public certificate in us-east-1 (DNS val
 - [Free flat-rate plan may exclude a hosting feature used here] → Verify hosting features before building. Analytics uses only default metrics and reports available without an upgrade.
 - [Plain HTTP between CloudFront and the origin] → Payload is product search text; locked down by prefix list and secret header; HTTPS is a follow-up with a domain.
 - [Cached 504 after wake] → Error caching TTL 0 on `/api/*` and caching disabled; test explicitly.
-- [Search retries exceed the browser timeout] → Implement the shared search-timeout budget and verify CloudFront lets its 25-second backend response through; independent per-call retry settings are insufficient.
+- [Search retries exceed the browser timeout] → The shared search-timeout budget is implemented locally; verify CloudFront lets its 25-second backend response through; independent per-call retry settings are insufficient.
 - [Bots and probes inflate request counts and may wake the instance] → Treat reports as approximate traffic information, not human visits; the instance cost ceiling remains the 24/7 case.
 - [Link-preview or monitoring traffic hitting the API origin repeatedly] → Default plan WAF protection and existing backend search limits; no custom edge rate rule.
 

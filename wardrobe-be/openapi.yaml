@@ -221,6 +221,18 @@ paths:
               example:
                 error: Illegal assistant response
                 message: Assistant response must not be blank
+        '504':
+          description: Search execution deadline or provider-attempt timeouts exhausted. Local downstream work is cancelled; the client must not replay automatically.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
+              example:
+                error: Search timed out
 
   /api/v1/health:
     get:

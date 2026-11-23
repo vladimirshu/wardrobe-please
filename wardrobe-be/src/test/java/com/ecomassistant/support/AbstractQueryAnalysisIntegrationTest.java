@@ -28,7 +28,7 @@ public abstract class AbstractQueryAnalysisIntegrationTest extends AbstractRetri
     @DynamicPropertySource
     static void chatBaseUrl(DynamicPropertyRegistry registry) {
         registry.add("spring.ai.openai.chat.base-url", () -> wireMock.baseUrl() + "/v1");
-        registry.add("spring.ai.openai.chat.max-retries", () -> "1");
+        registry.add("spring.ai.openai.chat.max-retries", () -> "0");
     }
 
     @BeforeEach

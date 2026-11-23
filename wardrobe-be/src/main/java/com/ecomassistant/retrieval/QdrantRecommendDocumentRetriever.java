@@ -97,7 +97,7 @@ public class QdrantRecommendDocumentRetriever implements DocumentRetriever {
 
         try {
             long startTime = System.currentTimeMillis();
-            List<Points.ScoredPoint> scoredPoints = qdrantClient.queryAsync(queryPoints.build()).get();
+            List<Points.ScoredPoint> scoredPoints = queryPoints(queryPoints.build());
             log.info("Vector DB query completed in {} ms", (System.currentTimeMillis() - startTime));
             return scoredPoints.stream().map(VectorStoreUtils::qdrantPointToDocument).toList();
         }
@@ -108,6 +108,29 @@ public class QdrantRecommendDocumentRetriever implements DocumentRetriever {
         catch (ExecutionException e) {
             throw new IllegalStateException("Failed to query Qdrant", e);
         }
+    }
+
+    private List<Points.ScoredPoint> queryPoints(Points.QueryPoints query) throws InterruptedException, ExecutionException {
+        var budget = com.ecomassistant.search.SearchBudget.current();
+        if (budget == null) return qdrantClient.queryAsync(query).get();
+        return budget.call(() -> {
+            budget.check();
+            var pending = qdrantClient.queryAsync(query);
+            try (var registration = budget.onCancel(() -> pending.cancel(true))) {
+                return pending.get(budget.remainingNanos(), java.util.concurrent.TimeUnit.NANOSECONDS);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new com.ecomassistant.search.SearchTimeoutException();
+            } catch (java.util.concurrent.TimeoutException ex) {
+                throw new com.ecomassistant.search.SearchTimeoutException();
+            } catch (RuntimeException ex) {
+                throw ex;
+            } catch (Exception ex) {
+                throw new IllegalStateException("Failed to query Qdrant", ex);
+            } finally {
+                pending.cancel(true);
+            }
+        }, false);
     }
 
     private Points.Query similarityQuery(String queryText, List<float[]> negativeEmbeddings) {

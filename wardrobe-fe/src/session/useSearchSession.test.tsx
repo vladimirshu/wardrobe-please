@@ -222,6 +222,19 @@ describe('useSearchSession', () => {
     expect(result.current.draftError).toBeTruthy()
   })
 
+  it('preserves input after a server timeout and checks readiness without replaying search', async () => {
+    const report = vi.spyOn(gate, 'reportFailure').mockResolvedValue()
+    try {
+      mockedSearch.mockResolvedValue({ kind: 'serverError' })
+      const { result } = renderHook(() => useSearchSession(), { wrapper })
+      await act(async () => { await result.current.submit('navy cotton jacket') })
+      expect(result.current.draft).toBe('navy cotton jacket')
+      expect(result.current.turns[0].status).toBe('error')
+      expect(report).toHaveBeenCalledTimes(1)
+      expect(mockedSearch).toHaveBeenCalledTimes(1)
+    } finally { report.mockRestore() }
+  })
+
   it('retains failed turns for inspection', async () => {
     mockedSearch.mockResolvedValue({ kind: 'serverError' })
     const { result } = renderHook(() => useSearchSession(), { wrapper })

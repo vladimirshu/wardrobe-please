@@ -19,7 +19,7 @@ public class RetrievalConfig {
             EmbeddingModel embeddingModel,
             @Value("${spring.ai.vectorstore.qdrant.collection-name:products}") String collectionName,
             EcomSearchProperties searchProperties) {
-        return new QdrantRecommendDocumentRetriever(qdrantClient, embeddingModel, collectionName,
+        return new QdrantRecommendDocumentRetriever(qdrantClient, new com.ecomassistant.search.SearchEmbeddingModel(embeddingModel), collectionName,
                 searchProperties.topK(), searchProperties.similarityThreshold());
     }
 

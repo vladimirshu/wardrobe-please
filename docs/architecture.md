@@ -17,6 +17,8 @@ sequenceDiagram
     end
 
     Shop->>API: POST /api/v1/search (JSON body)
+    Note over API: Start one monotonic 25-second deadline before binding/admission
+    Note over API,DB: Provider attempts: min(5 seconds, remaining budget)<br/>Qdrant and lock waits: remaining deadline<br/>At most three extra attempts across transport and schema retries
     break Unsupported content type
         API-->>Shop: 415 Unsupported Media Type
     end
@@ -60,6 +62,10 @@ sequenceDiagram
         end
         API->>API: Keep selected catalog records in retrieval order and cap results
     end
+    break Deadline expires at any stage, or provider timeouts exhaust retries
+        API->>API: Cancel active local HTTP/gRPC work and retry/lock waits
+        API-->>Shop: 504 Generic search timeout (no automatic replay)
+    end
     API-->>Shop: 200 Products and search interpretation
 ```
 
@@ -75,11 +81,11 @@ The planned [provider-managed MCP search flow](../wardrobe-be/openspec/changes/l
 
 The [storefront search benchmark proposal](../wardrobe-be/openspec/changes/archive/2026-11-21-benchmark-storefront-search/design.md) was deferred and archived as unimplemented on 2026-11-21. Its proposed endpoint evaluation and MCP comparison remain future work.
 
-**Search transport:** [search-request-body](../openspec/changes/search-request-body/design.md) uses POST with an `application/json` body containing `message`, `conversationId` and optional `clearMemory` (default false). Query parameters cannot supply or override these fields. GET search returns 405 without admission; invalid or missing JSON returns 400 and unsupported content types return 415 before admission or downstream calls. Deploy the storefront and backend together.
+**Search transport:** [search-request-body](../openspec/changes/archive/2026-11-23-search-request-body/design.md) uses POST with an `application/json` body containing `message`, `conversationId` and optional `clearMemory` (default false). Query parameters cannot supply or override these fields. GET search returns 405 without admission; invalid or missing JSON returns 400 and unsupported content types return 415 before admission or downstream calls. Deploy the storefront and backend together.
 
 Supported storefront requests keep search fields out of request URLs and URL access logs. This does not redact arbitrary caller-supplied query parameters or explicitly enabled body logging. No request-body logging is introduced. CloudFront POST forwarding and WAF verification remain planned in the AWS edge change.
 
-**Planned search timeout budget:** [search-timeout-budget](../openspec/changes/search-timeout-budget/design.md) retains the frontend’s 30-second timeout, introduces one 25-second backend deadline, caps provider attempts at 5 seconds/remaining time and shares at most three extra attempts across transport and schema retries. Expiry cancels local downstream work and returns a generic 504; startup indexing and health/wake probes keep their separate timeouts. This behavior is not yet implemented.
+**Implemented search timeout budget:** [search-timeout-budget](../openspec/changes/archive/2026-11-23-search-timeout-budget/design.md) retains the frontend’s 30-second timeout, introduces one 25-second backend deadline, caps provider attempts at 5 seconds/remaining time and shares at most three extra attempts across transport and schema retries. Expiry cancels local downstream work and returns a generic 504; startup indexing and health/wake probes keep their separate timeouts. `SearchBudgetFilter` scopes the synchronous request, buffers its response and clears the context on completion. Chat/embedding model wrappers, schema advisors, cancellable HTTP transports and the Qdrant channel share the budget. Native SDK/Spring retry settings must be zero; gRPC service retries and search HTTP automatic connection recovery/redirects are disabled. Schema correction retains one repeat per stage, consuming the same three-extra-attempt allowance. Retry waits honor `Retry-After` only when it fits. The frontend preserves failed input and re-checks readiness without replay. Independent retry defaults are also disabled outside search, but no search deadline is applied there. See [verification](../openspec/changes/archive/2026-11-23-search-timeout-budget/verification.md).
 
 **Backend runtime dependencies:** [reduce-backend-memory](../openspec/changes/reduce-backend-memory/design.md) removes unused OAuth2 login dependencies and AspectJ. `ProductSearchService` records `product.search` timing in a `finally` block for successful and exceptional completion, with class/method/exception tags only. Spring Security, validation, readiness and OpenAI embeddings remain. DeepSeek's starter is commented out; provider-specific options live in an isolated compile-only adapter. An early configuration check explains how to uncomment/rebuild/select DeepSeek when its runtime is absent, before chat-dependent beans are created. Re-enabling DeepSeek chat still uses OpenAI embeddings.
 

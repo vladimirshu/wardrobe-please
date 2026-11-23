@@ -71,6 +71,18 @@ describe('useAvailabilityGate', () => {
     expect(result.current.isHealthy).toBe(true)
   })
 
+  it('keeps a healthy service open after a failed search passes its readiness check', async () => {
+    mockedIsWithin.mockReturnValue(true)
+    mockedCheckHealth.mockResolvedValue('healthy')
+    const { result } = renderHook(() => useAvailabilityGate())
+    await flush()
+    await act(async () => { await result.current.reportFailure() })
+    expect(result.current.phase).toBe('healthy')
+    expect(result.current.isHealthy).toBe(true)
+    expect(mockedCheckHealth).toHaveBeenCalledTimes(2)
+    expect(mockedCheckControl).not.toHaveBeenCalled()
+  })
+
   it('routes off-hours arrivals through control first without a health request', async () => {
     mockedIsWithin.mockReturnValue(false)
     mockedCheckControl.mockResolvedValue({ state: 'UP' })

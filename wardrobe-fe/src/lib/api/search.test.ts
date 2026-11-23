@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import { searchProducts } from './search'
@@ -117,11 +117,34 @@ describe('searchProducts', () => {
     })
   })
 
-  it('maps 5xx to serverError', async () => {
+  it.each([500, 504])('maps HTTP %s to serverError', async (status) => {
     server.use(
-      http.post('*/api/v1/search', () => HttpResponse.json({ error: 'boom' }, { status: 500 })),
+      http.post('*/api/v1/search', () => HttpResponse.json({ error: 'boom' }, { status })),
     )
     expect(await searchProducts(req)).toEqual({ kind: 'serverError' })
+  })
+
+  it('aborts a hung search at 30 seconds without replaying it', async () => {
+    vi.useFakeTimers()
+    let signal!: AbortSignal
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation((_url, init) => {
+      signal = init!.signal as AbortSignal
+      return new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+      })
+    })
+    try {
+      const pending = searchProducts(req)
+      await vi.advanceTimersByTimeAsync(29_999)
+      expect(signal.aborted).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(await pending).toEqual({ kind: 'network' })
+      expect(signal.aborted).toBe(true)
+      expect(fetch).toHaveBeenCalledTimes(1)
+    } finally {
+      fetch.mockRestore()
+      vi.useRealTimers()
+    }
   })
 
   it('maps a network failure to network', async () => {

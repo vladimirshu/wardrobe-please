@@ -22,8 +22,9 @@ spring:
         store: false
         replay-reasoning-content: false
         timeout: 15s
-        max-retries: 10
+        max-retries: 0
       embedding:
+        max-retries: 0
         options:
           model: text-embedding-3-small
     deepseek:
@@ -37,7 +38,7 @@ spring:
         response-format:
           type: JSON_OBJECT
     retry:
-      max-attempts: 10
+      max-attempts: 0
     vectorstore:
       qdrant:
         collection-name: "products"

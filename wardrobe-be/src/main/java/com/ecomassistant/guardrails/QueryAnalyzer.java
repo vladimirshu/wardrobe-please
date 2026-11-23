@@ -54,7 +54,8 @@ public class QueryAnalyzer {
             throw new IllegalAssistantResponseException(
                     "Query analysis response does not match the expected schema", e.getMessage());
         } catch (RuntimeException e) {
-            String reason = strategy.providerFailureReason(e);
+            String reason = e instanceof com.ecomassistant.search.TransientDependencyException
+                    ? "transport retry budget exhausted" : strategy.providerFailureReason(e);
             if (reason == null) {
                 throw e;
             }

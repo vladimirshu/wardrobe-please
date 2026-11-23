@@ -47,7 +47,7 @@ class DeepSeekQueryAnalysisIntegrationTest extends AbstractQueryAnalysisIntegrat
         registry.add("spring.ai.model.chat", () -> "deepseek");
         registry.add("spring.ai.deepseek.base-url", wireMock::baseUrl);
         registry.add("spring.ai.deepseek.api-key", () -> "deepseek-test-key");
-        registry.add("spring.ai.retry.max-attempts", () -> "1");
+        registry.add("spring.ai.retry.max-attempts", () -> "0");
         registry.add("spring.ai.retry.backoff.initial-interval", () -> "1ms");
     }
 
@@ -89,7 +89,7 @@ class DeepSeekQueryAnalysisIntegrationTest extends AbstractQueryAnalysisIntegrat
     }
 
     @ParameterizedTest
-    @CsvSource({"401,1", "503,2"})
+    @CsvSource({"401,1", "503,4"})
     void mapsProviderFailureAndAppliesRetryBound(int statusCode, int expectedRequests) throws Exception {
         wireMock.stubFor(post(urlEqualTo(CHAT_PATH))
                 .willReturn(aResponse().withStatus(statusCode).withBody("fixture error")));

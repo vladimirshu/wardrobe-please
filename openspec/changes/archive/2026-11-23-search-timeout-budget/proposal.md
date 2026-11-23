@@ -20,4 +20,4 @@ The storefront stops waiting after 30 seconds, while provider timeouts and indep
 
 ## Impact
 
-Backend orchestration, provider/Qdrant calls, exception handling and planned CloudFront timeout verification. The frontend already has a 30-second timeout. Startup catalog import, health/wake probes and browsing are outside this change. No new service or monitoring infrastructure.
+Backend orchestration, provider/Qdrant calls, exception handling and local timeout verification. The frontend already has a 30-second timeout. Startup catalog import, health/wake probes and browsing are outside this change. No new service or monitoring infrastructure.

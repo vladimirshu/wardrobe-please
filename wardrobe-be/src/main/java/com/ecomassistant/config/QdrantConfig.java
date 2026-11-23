@@ -47,6 +47,8 @@ class QdrantConfig {
 
         var credentials = tls ? TlsChannelCredentials.create() : InsecureChannelCredentials.create();
         var channel = Grpc.newChannelBuilderForAddress(host, port, credentials)
+                .disableRetry()
+                .intercept(new com.ecomassistant.search.SearchGrpcInterceptor())
                 .intercept(new ConnectionErrors(host + ":" + port, hasApiKey ? apiKey : null))
                 .build();
         // The SDK's version probe runs before it attaches the API key and has no deadline.

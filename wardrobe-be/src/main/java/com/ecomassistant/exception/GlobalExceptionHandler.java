@@ -22,6 +22,20 @@ import java.util.Map;
 @Slf4j
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(com.ecomassistant.search.TransientDependencyException.class)
+    public ResponseEntity<Map<String, String>> handleDependencyFailure() {
+        log.info("Search dependency retry allowance exhausted");
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Search temporarily unavailable"));
+    }
+
+    @ExceptionHandler(com.ecomassistant.search.SearchTimeoutException.class)
+    public ResponseEntity<Map<String, String>> handleSearchTimeout() {
+        log.info("Search timed out");
+        return ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT)
+                .body(Map.of("error", "Search timed out"));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, String>> handleValidationExceptions(
             MethodArgumentNotValidException ex) {

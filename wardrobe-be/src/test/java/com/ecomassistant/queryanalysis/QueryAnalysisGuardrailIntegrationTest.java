@@ -156,10 +156,10 @@ class QueryAnalysisGuardrailIntegrationTest extends AbstractQueryAnalysisIntegra
     }
 
     @Test
-    void transientProviderFailureStopsAtConfiguredRetryBound() throws Exception {
+    void transientProviderFailureStopsAtSharedRetryBound() throws Exception {
         stubProviderResponse(503, "{\"error\":\"Fixture provider failure\"}");
         expectProviderFailure();
-        assertThat(wireMock.getAllServeEvents()).hasSize(2);
+        assertThat(wireMock.getAllServeEvents()).hasSize(4);
     }
 
     private void stubProviderResponse(int status, String body) {

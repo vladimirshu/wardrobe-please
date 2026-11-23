@@ -11,7 +11,7 @@ cloud TLS setting cannot affect local fixtures.
 ## Cost controls and operations
 
 An admitted search calls the configured chat provider for query analysis. If analysis allows the request and Qdrant returns candidates, a second call selects matching SKUs. Both calls use the same provider; OpenAI GPT-6 Luna is the default.
-Each call can retry invalid structured output once. The selected client also applies its configured transport retry limit.
+Each chat stage can repeat invalid structured output once, subject to the shared search retry allowance below.
 Truncated or refused completions fail the search.
 An allowed search uses the existing OpenAI `text-embedding-3-small` model for Qdrant.
 
@@ -38,15 +38,49 @@ Configure the limits in `application.yml`:
 | `ecom.limits.daily-budget` | 300 | accepted searches per UTC day across all clients |
 | `ecom.limits.trusted-proxy-hops` | 1 | trusted `X-Forwarded-For` entries, counted from the right |
 | `spring.ai.openai.chat.max-completion-tokens` | 500 | maximum query-analysis completion tokens per attempt, including reasoning |
-| `spring.ai.openai.chat.timeout` | 15s | chat request timeout |
-| `spring.ai.openai.chat.max-retries` | 10 | SDK retries per attempt (up to 11 sends, including the initial send) |
+| `spring.ai.openai.chat.timeout` | 15s | model default outside search; search overrides each attempt with min(5s, remaining deadline) |
+| `spring.ai.openai.chat.max-retries` | 0 | required: disable independent chat SDK retries |
+| `spring.ai.openai.embedding.max-retries` | 0 | required: disable independent embedding SDK retries |
 | `spring.ai.deepseek.chat.max-tokens` | 500 | DeepSeek query-analysis completion token cap |
 | `ecom.search.product-filter-max-output-tokens` | 300 | SKU selection completion token cap for either provider |
 | `ecom.search.max-results` | 10 | maximum number of selected products returned |
-| `spring.ai.retry.max-attempts` | 10 | DeepSeek transport retries per attempt (up to 11 sends, including the initial send) |
+| `spring.ai.retry.max-attempts` | 0 | required: Spring AI 2.0.2 maps this property to `maxRetries`; 0 means one initial DeepSeek send |
 
 A rejected search returns HTTP 429 with a `Retry-After` header and a body
 `{"code":"RATE_LIMITED"|"DAILY_BUDGET_EXHAUSTED","message":"..."}` (see `openapi.yaml`).
+
+### Search execution budget
+
+`SearchBudgetFilter` starts a monotonic **25-second deadline** before POST search JSON
+binding/validation and admission. All synchronous stages and the conversation-lock wait
+share it. Each chat/embedding attempt gets **min(5 seconds, remaining time)** including
+connection, headers and the complete response body. Qdrant gets only the remaining
+search deadline. One search permits **three extra downstream attempts total**, shared
+by transient transport retries and the existing one-schema-repeat-per-chat-stage policy.
+Initial calls to distinct stages do not consume extras; admission runs once.
+
+Search HTTP uses cancellable calls with connection recovery and redirects disabled.
+OpenAI request options carry the dynamic timeout, and HTTP bodies are buffered while
+cancellation remains active. Optional DeepSeek uses a cancellable JDK HTTP future.
+Qdrant uses a gRPC deadline plus explicit cancellation. The deadline timer also interrupts
+lock/retry waits. Backoff is 100ms, or a valid provider `Retry-After`; a delay that cannot
+fit fails immediately. No new call starts after expiry. HTTP 408/429/500/502/503/504,
+transport I/O failures and transient Qdrant statuses can retry; input/admission rejection
+cannot. Independent SDK/Spring retry properties must remain zero (checked at startup),
+and gRPC service retries are disabled. These shared client defaults also disable native
+retry loops outside search; startup import and health/browsing retain their separate
+timeouts and do not receive the search deadline or its retry loop.
+
+Expiry or exhausted provider timeouts returns **504** with
+`{"error":"Search timed out"}`, with no prompt/provider body in the timeout response or
+log. Buffered search responses prevent an expired result being committed as success.
+Already completed memory/admission work is not rolled back. Local cancellation cannot
+guarantee a remote provider stops processing or charging an accepted call.
+
+The storefront retains its **30-second** timeout, preserves failed input, checks readiness
+and never replays a search automatically. A successful readiness check keeps the gate
+open. See the
+[verification record](../openspec/changes/archive/2026-11-23-search-timeout-budget/verification.md).
 
 ### In-memory limitation
 

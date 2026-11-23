@@ -8,7 +8,8 @@ import com.ecomassistant.memory.ValidatedQueryAnalysisMemoryAdvisor;
 import com.ecomassistant.rag.EmptyRetrievalAdvisor;
 import com.ecomassistant.rag.ProductSelection;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.advisor.StructuredOutputValidationAdvisor;
+import com.ecomassistant.search.BudgetSchemaAdvisor;
+import com.ecomassistant.search.SearchChatModel;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
@@ -46,17 +47,14 @@ public class AiConfig {
     }
 
     @Bean
-    public StructuredOutputValidationAdvisor queryAnalysisSchemaValidationAdvisor() {
-        return StructuredOutputValidationAdvisor.builder()
-            .outputJsonSchema(QueryAnalysis.jsonSchema())
-            .maxRepeatAttempts(1)
-            .build();
+    public BudgetSchemaAdvisor queryAnalysisSchemaValidationAdvisor() {
+        return new BudgetSchemaAdvisor(QueryAnalysis.jsonSchema());
     }
 
     @Bean
     public ChatClient queryAnalysisChatClient(ChatModel chatModel, ChatMemory chatMemory,
             QueryAnalysisProviderStrategy strategy) {
-        var builder = ChatClient.builder(chatModel);
+        var builder = ChatClient.builder(new SearchChatModel(chatModel));
         strategy.configure(builder, loadSystemInstructions());
         return builder
                 .defaultAdvisors(queryAnalysisSchemaValidationAdvisor(),
@@ -82,16 +80,12 @@ public class AiConfig {
             case "deepseek" -> DeepSeekOptions.builder(maxOutputTokens);
             default -> throw new IllegalStateException("Unsupported storefront chat provider: " + provider);
         };
-        return ChatClient.builder(chatModel)
+        return ChatClient.builder(new SearchChatModel(chatModel))
                 .defaultOptions(options)
                 .defaultAdvisors(queryAnalysisGuardrailAdvisor,
                         productSearchRetrievalAdvisor,
                         emptyRetrievalAdvisor,
-                        StructuredOutputValidationAdvisor.builder()
-                                .outputJsonSchema(ProductSelection.SCHEMA)
-                                .maxRepeatAttempts(1)
-                                .advisorOrder(-100)
-                                .build())
+                        new BudgetSchemaAdvisor(ProductSelection.SCHEMA, -100))
                 .build();
     }
 

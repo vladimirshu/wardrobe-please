@@ -14,11 +14,23 @@ public final class ConversationLocks {
             result.users++;
             return result;
         });
-        entry.lock.lock();
+        boolean acquired = false;
         try {
+            var budget = com.ecomassistant.search.SearchBudget.current();
+            if (budget == null) {
+                entry.lock.lock();
+                acquired = true;
+            } else {
+                acquired = entry.lock.tryLock(budget.remainingNanos(), java.util.concurrent.TimeUnit.NANOSECONDS);
+                if (!acquired) throw new com.ecomassistant.search.SearchTimeoutException();
+                budget.check();
+            }
             return action.get();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new com.ecomassistant.search.SearchTimeoutException();
         } finally {
-            entry.lock.unlock();
+            if (acquired) entry.lock.unlock();
             locks.compute(conversationId, (key, current) -> --current.users == 0 ? null : current);
         }
     }
