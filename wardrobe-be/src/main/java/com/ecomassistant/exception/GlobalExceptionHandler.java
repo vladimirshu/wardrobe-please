@@ -22,6 +22,15 @@ import java.util.Map;
 @Slf4j
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler({com.openai.errors.OpenAIException.class, org.springframework.web.client.RestClientException.class})
+    public ResponseEntity<Map<String, String>> handleProviderFailure(RuntimeException failure) {
+        // Includes embedding failures outside the chat advisors. Never log the raw cause/body.
+        log.warn("Search provider failed: {}", failure.getClass().getSimpleName());
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Search temporarily unavailable"));
+    }
+
+
     @ExceptionHandler(com.ecomassistant.search.TransientDependencyException.class)
     public ResponseEntity<Map<String, String>> handleDependencyFailure() {
         log.info("Search dependency retry allowance exhausted");

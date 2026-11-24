@@ -24,7 +24,7 @@ A valid UP response SHALL mean the running origin answered its readiness check t
 
 #### Scenario: Probe follows the protected backend route
 - **WHEN** Lambda checks readiness for a running instance
-- **THEN** it requests the configured CloudFront HTTPS health URL without an origin secret, CloudFront forwards the request to EC2 with the secret header, and the existing CloudFront-only security group admits the request
+- **THEN** it requests the configured CloudFront HTTPS health URL without an origin secret, CloudFront forwards the request over its private VPC Origin without a secret header, and the backend security group admits the AWS-managed VPC-origin service security group
 
 #### Scenario: Edge failure or invalid probe configuration
 - **WHEN** the health URL is missing or invalid, or CloudFront returns a redirect, non-200 response or exceeds the probe timeout

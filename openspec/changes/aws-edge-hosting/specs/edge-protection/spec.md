@@ -1,11 +1,23 @@
 ## ADDED Requirements
 
-### Requirement: Origin custom header
-CloudFront SHALL add the secret header `X-Origin-Verify` to every request sent to the backend origin, using the same secret the backend verifies.
+### Requirement: Private backend origin
+CloudFront SHALL forward backend requests over the existing EC2 VPC Origin to the
+instance's private interface. The backend security group SHALL admit TCP 8080 only
+from AWS's VPC-origin service security group, not public CIDRs or the shared
+CloudFront prefix list. The origin SHALL NOT be shared across accounts. No custom
+origin-authentication header or application origin filter SHALL be required.
 
 #### Scenario: Request via CloudFront
 - **WHEN** a search request passes through the distribution
-- **THEN** the backend receives the `X-Origin-Verify` header with the configured secret
+- **THEN** its JSON body reaches EC2 over the VPC-origin private path without an origin secret
+
+#### Scenario: Another account's distribution
+- **WHEN** an unrelated distribution targets the public EC2 address
+- **THEN** the security group rejects the connection
+
+#### Scenario: Outbound internet remains available
+- **WHEN** EC2 calls OpenAI or Qdrant through its retained public IP and Internet Gateway route
+- **THEN** outgoing calls and their replies work without opening public inbound access
 
 ### Requirement: Lambda reachable only via CloudFront
 The control Lambda Function URL SHALL be invocable only through the distribution's origin access control.
@@ -26,7 +38,7 @@ The distribution SHALL retain the selected plan's default WAF protection and any
 - **THEN** they work with default protection, or the incompatibility is recorded for a separate decision without silently adding custom WAF configuration or a paid upgrade
 
 ### Requirement: Automated readiness probes
-Any enabled WAF rules SHALL permit control-Lambda requests to `/api/v1/health` without a browser challenge. CloudFront SHALL route those requests to EC2 and add the origin-verification header, without granting Lambda direct network access to EC2 or sharing the secret with it.
+Any enabled WAF rules SHALL permit control-Lambda requests to `/api/v1/health` without a browser challenge. CloudFront SHALL route those requests through the VPC Origin without granting Lambda direct network access to EC2 or introducing an origin secret.
 
 #### Scenario: Control Lambda health check
 - **WHEN** the control Lambda requests the CloudFront HTTPS health URL
@@ -39,9 +51,11 @@ The default behavior SHALL use AWS-managed `SecurityHeadersPolicy` (ID `67f7725c
 - **WHEN** `index.html` is served
 - **THEN** the response carries the AWS-managed security headers, including `X-Frame-Options: SAMEORIGIN`; no CSP header is required
 
-### Requirement: Secret handling
-The origin-verification secret SHALL be generated once, stored only in SSM Parameter Store and in the deployed distribution configuration, and SHALL NOT appear in the repository.
+### Requirement: No origin-verification secret
+The edge deployment SHALL consume the backend VPC Origin ID/private DNS and SHALL
+NOT require an SSM origin-verification parameter, custom authentication header or
+application origin-verification property.
 
-#### Scenario: Repository scan
-- **WHEN** the repository is searched for the secret value
-- **THEN** it is not found
+#### Scenario: Deploying backend routing
+- **WHEN** the backend behavior is configured
+- **THEN** it binds to the exported VPC Origin, without reading or injecting an origin-verification secret

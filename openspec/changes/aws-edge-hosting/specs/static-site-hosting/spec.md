@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Single distribution with path-based routing
-The system SHALL serve the storefront and the backend API from one CloudFront domain, routing `/api/v1/control/*` to the control Lambda, `/api/v1/*` to the backend origin, and all other paths to a private S3 bucket holding the SPA build, without URL rewriting.
+The system SHALL serve the storefront and the backend API from one CloudFront domain, routing `/api/v1/control/*` to the control Lambda, `/api/v1/*` to the backend private interface through the exported EC2 VPC Origin, and all other paths to a private S3 bucket holding the SPA build, without URL rewriting.
 
 #### Scenario: Page request
 - **WHEN** a browser requests `/`

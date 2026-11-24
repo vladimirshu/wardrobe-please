@@ -29,6 +29,10 @@ COPY --from=builder /app/build/libs/*.jar app.jar
 
 COPY runtime-jvm.args /app/runtime-jvm.args
 
+# A fixed unprivileged identity; the application only needs read access to /app.
+RUN groupadd --gid 10001 wardrobe && useradd --uid 10001 --gid wardrobe --no-create-home wardrobe
+USER 10001:10001
+
 # Expose port 8080
 EXPOSE 8080
 

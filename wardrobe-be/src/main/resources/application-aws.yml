@@ -1,0 +1,9 @@
+# Ordinary Spring deployment profile; secrets are injected by the host service.
+logging:
+  level:
+    root: INFO
+    com.ecomassistant: INFO
+    org.springframework.ai: INFO
+    org.springframework.ai.retry.autoconfigure.SpringAiRetryAutoConfiguration: ERROR
+    org.springframework.ai.deepseek.DeepSeekChatModel: ERROR
+    org.springframework.ai.openai.OpenAiChatModel: ERROR

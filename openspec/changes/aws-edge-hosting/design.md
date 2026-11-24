@@ -14,7 +14,7 @@ Everything about pricing, plan inclusions (flat-rate plan, WAF, custom domain, L
 
 **Non-Goals:**
 - A custom domain as a requirement (optional section only).
-- HTTPS between CloudFront and the origin (no domain, no certificate on the host).
+- TLS on the private origin hop (no domain or origin certificate required for this change).
 - Server-side rendering, image optimization, or any edge compute.
 - Application-level rate limits (`demo-cost-controls`).
 - Product analytics, campaign attribution, visitor/session tracking, wake-event storage, access-log analysis or frontend tracking integrations.
@@ -24,10 +24,10 @@ Everything about pricing, plan inclusions (flat-rate plan, WAF, custom domain, L
 **1. Three origins, path-based behaviors.**
 
     /api/v1/control/*  → Lambda Function URL   (OAC, AWS_IAM, caching disabled)
-    /api/v1/*          → EC2 origin :8080 HTTP (custom header, caching disabled)
+    /api/v1/*          → EC2 private interface :8080 HTTP (VPC Origin, no custom secret, caching disabled)
     /*  (default)      → S3 bucket             (OAC, caching enabled)
 
-Behavior order puts the more specific `control` path first. Control Lambda probes `https://<distribution-domain>/api/v1/health`, which matches the EC2 behavior and never invokes Lambda again; CloudFront adds the backend secret header. Keep health responses and 5xx errors uncached. The `/api/v1` prefix means no URL rewriting function is needed.
+Behavior order puts the more specific `control` path first. Control Lambda probes `https://<distribution-domain>/api/v1/health`, which matches the EC2 behavior and never invokes Lambda again; CloudFront reaches the backend through its private VPC Origin. Keep health responses and 5xx errors uncached. The `/api/v1` prefix means no URL rewriting function is needed.
 The planned backend behavior must allow `POST /api/v1/search`, forward its JSON body and `Content-Type` unchanged, and disable caching for search. A CloudFront allowed-method preset may include other methods; backend routes remain unchanged. Verify body/header passthrough, uncached responses and compatibility of POST search with the plan’s default WAF protection after deployment. Do not add path-specific WAF rules or custom responses. Do not introduce request-body logging or analytics tracking.
 
 - Alternative: separate subdomains per origin (needs a domain and CORS). Rejected.
@@ -41,8 +41,21 @@ Vite emits content-hashed files under `assets/`; they are uploaded with `Cache-C
 **4. Fast failure for a stopped origin.**
 The `/api/v1/*` origin uses connection attempts = 1 and connection timeout of 2-3 seconds, response timeout of 30 seconds allowing the implemented [25-second backend search deadline](../archive/2026-11-23-search-timeout-budget/design.md) to return its response within the frontend’s 30-second window under normal network conditions; verify the effective CloudFront setting instead of assuming a provider timeout bounds the whole search. Custom error responses for 502/503/504 under `/api/*` use error caching minimum TTL 0, otherwise a cached 504 (assumed 10 s default) would be served just after the instance becomes ready.
 
-**5. Origin lock-down in layers.**
-(a) Security group allows only the managed CloudFront origin-facing prefix list (`aws-backend-host`); (b) CloudFront adds `X-Origin-Verify: <secret>` and the backend rejects other requests (a prefix list admits any distribution); (c) the Function URL uses IAM auth with OAC. The secret is generated once, stored in SSM and passed to CloudFront as a deploy-time value; rotation is a runbook procedure.
+**5. Private origin connectivity.**
+The backend stack exports `WardrobeBackendVpcOriginId` and
+`WardrobeBackendOriginPrivateDns`. Import the existing resource using
+`cloudfront.VpcOrigin.fromVpcOriginAttributes` and bind with
+`origins.VpcOrigin.withVpcOrigin`; do not create a second VPC Origin or use a public
+`HttpOrigin`. The EC2 security group admits 8080 only from AWS's VPC-origin service
+security group, not the shared CloudFront prefix list. Do not share the origin across
+accounts. The Lambda Function URL separately retains IAM auth and OAC.
+
+No origin custom authentication header or application origin filter is needed.
+EC2 retains a public IP and Internet Gateway route for outbound API calls; unsolicited
+public inbound requests are blocked. The backend hop uses private AWS connectivity.
+The backend stack can create its VPC Origin before this distribution is created;
+EC2 must be running for origin creation. Migration removes the old prefix-list rule
+before activating the filter-free image. See the host runbook for deployment order.
 
 **6. Default plan WAF protection only.**
 Keep the selected CloudFront plan’s default WAF protection and its required associated web ACL. Do not create custom rules, search-path rate rules, exclusions, browser challenges or custom block responses. Existing backend rate limits still return 429; edge blocks retain the default response supplied by AWS and are not required to return 429. Verify real page loads, POST search and automated `/api/v1/health` probes work with the default protection. If they do not, record the incompatibility for a separate decision rather than silently adding custom WAF configuration or upgrading the plan.
@@ -64,7 +77,7 @@ When the owner decides on a domain: ACM public certificate in us-east-1 (DNS val
 ## Risks / Trade-offs
 
 - [Free flat-rate plan may exclude a hosting feature used here] → Verify hosting features before building. Analytics uses only default metrics and reports available without an upgrade.
-- [Plain HTTP between CloudFront and the origin] → Payload is product search text; locked down by prefix list and secret header; HTTPS is a follow-up with a domain.
+- [HTTP backend hop] → Use the VPC-origin private path, never the public IP. Viewer traffic remains HTTPS; backend TLS can be added separately.
 - [Cached 504 after wake] → Error caching TTL 0 on `/api/*` and caching disabled; test explicitly.
 - [Search retries exceed the browser timeout] → The shared search-timeout budget is implemented locally; verify CloudFront lets its 25-second backend response through; independent per-call retry settings are insufficient.
 - [Bots and probes inflate request counts and may wake the instance] → Treat reports as approximate traffic information, not human visits; the instance cost ceiling remains the 24/7 case.
@@ -81,5 +94,14 @@ When the owner decides on a domain: ACM public certificate in us-east-1 (DNS val
 
 - Does the free flat-rate plan allow the origin timeouts, custom error caching, AWS-managed SecurityHeadersPolicy, default WAF protection and (later) a custom domain used here?
 - Custom domain: decided later by the owner.
-- IaC tool: CDK (TypeScript) as default, Terraform as alternative; not decided.
-- Region (the certificate for a future domain must be in us-east-1 regardless).
+- Shared `infra/` now uses owner-approved CDK TypeScript for the host; edge implementation remains planned.
+- Host region is eu-central-1; the certificate for a future domain must be in us-east-1 regardless.
+
+## Backend integration status — 2026-11-23
+
+Repository code now defines the EC2 VPC Origin and exports its ID/private DNS;
+this revision has not been deployed. The earlier public-origin deployment is
+historical evidence only. Edge routing, external isolation tests and end-to-end
+readiness/search remain planned here. The owner's total target is €10/month:
+retain the existing outbound EIP, introduce no NAT Gateway, and account for edge
+usage and provisioning-time custom-resource API/Lambda calls before deployment.

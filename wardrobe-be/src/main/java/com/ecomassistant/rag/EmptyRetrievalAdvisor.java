@@ -50,6 +50,14 @@ public class EmptyRetrievalAdvisor implements CallAdvisor, StreamAdvisor {
         } catch (RuntimeException e) {
             log.warn("LLM product refinement failed after {} ms: {}",
                     NANOSECONDS.toMillis(System.nanoTime() - start), e.getClass().getSimpleName());
+            if (e instanceof com.openai.errors.OpenAIException
+                    || e instanceof org.springframework.web.client.RestClientException
+                    || e.getClass().getName().startsWith("org.springframework.ai.retry.")) {
+                // Provider exceptions can carry credentials, request text or raw response bodies.
+                // Do not attach the original cause: servlet error logs must not traverse it.
+                throw new com.ecomassistant.exception.IllegalAssistantResponseException(
+                        "Product filtering provider failed", e.getClass().getSimpleName());
+            }
             throw e;
         }
         ChatResponse chatResponse = response.chatResponse();

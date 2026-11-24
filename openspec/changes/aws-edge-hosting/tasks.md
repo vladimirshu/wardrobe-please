@@ -5,10 +5,10 @@
 ## 2. Buckets and distribution
 
 - [ ] 2.1 Create the private SPA bucket (block public access, origin access control) with no analytics log bucket
-- [ ] 2.2 Create the distribution with three origins and the behaviors `/api/v1/control/*` (Lambda, OAC, caching disabled), `/api/v1/*` (EC2 HTTP :8080, custom header `X-Origin-Verify`, caching disabled, 1 attempt, 2-3 s connect timeout), default `/*` (S3); allow POST on the backend behavior and forward the JSON body and Content-Type unchanged
+- [ ] 2.2 Create the distribution with three origins and the behaviors `/api/v1/control/*` (Lambda, OAC, caching disabled), `/api/v1/*` (EC2 private HTTP :8080 through the imported VPC Origin, no secret header, caching disabled, 1 attempt, 2-3 s connect timeout), default `/*` (S3); allow POST on the backend behavior and forward the JSON body and Content-Type unchanged
 - [ ] 2.3 Configure error handling for `/api/*` so 5xx responses are not cached (minimum TTL 0); confirm the response timeout allows the planned 25-second backend deadline response within the frontend’s 30-second window under normal network conditions
 - [ ] 2.4 Attach AWS-managed `SecurityHeadersPolicy` (`67f7725c-6f97-4210-82d7-5512b31e9d03`) to the default behavior; create no custom policy, CSP, header overrides or edge-function workaround
-- [ ] 2.5 Generate the origin secret once, store it in SSM (shared with `aws-backend-host`; the control Lambda does not receive it), and keep it out of the repository
+- [ ] 2.5 Import the backend VPC Origin ID/private DNS; verify managed-SG-only 8080 ingress, no shared prefix-list/public ingress and no cross-account origin sharing; coordinate safe migration before removing the old secret out of band
 
 ## 3. Edge protection
 
@@ -32,5 +32,5 @@
 
 ## 7. Runbook and cost
 
-- [ ] 7.1 Extend `infra/RUNBOOK.md`: deploy SPA, invalidate, rotate the origin secret (SSM, host, distribution; Lambda holds no origin secret), view built-in metrics and reports, disable the distribution
+- [ ] 7.1 Extend `infra/RUNBOOK.md`: deploy SPA, invalidate, inspect VPC-origin association and its service-managed security-group reference, view built-in metrics and reports, disable the distribution
 - [ ] 7.2 Cost verification: check the AWS Budgets alert exists; after the first week review Cost Explorer for CloudFront, S3 and WAF lines against the plan assumptions and record actual figures

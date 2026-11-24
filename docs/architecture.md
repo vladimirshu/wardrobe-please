@@ -95,7 +95,7 @@ limits are documented below. AWS total-host and real-provider validation remain 
 
 **Planned AWS schedule:** both recurring start (08:00) and stop (22:00) run Monday to Friday in Europe/Berlin. No recurring start or stop runs at weekends; visitor-triggered weekend wake and off-hours shutdown after 20–25 minutes remain available.
 
-**Planned deployment logging configuration:** `application-aws.yml` is an ordinary Spring Boot profile activated with `SPRING_PROFILES_ACTIVE=aws`, not an AWS login profile or remote logging service. It retains payload-sensitive logger restrictions and requires verification of normal and provider-error paths.
+**Implemented deployment logging configuration:** `application-aws.yml` is an ordinary Spring Boot profile activated with `SPRING_PROFILES_ACTIVE=aws`, not an AWS login profile or remote logging service. It retains payload-sensitive logger restrictions. Mock-provider tests cover successful query analysis, empty/schema-invalid/malformed responses and provider errors; live-host checks remain separate. Unknown refinement SKUs are logged without their untrusted values. Provider exceptions from refinement are converted to a generic assistant failure without retaining raw exception causes, preventing servlet error logging from exposing payloads. The exception handler also sanitizes OpenAI/HTTP provider failures from embedding and retrieval.
 
 **Java runtime:** [upgrade-backend-java-25](../openspec/changes/upgrade-backend-java-25/design.md) aligns compilation/tests on Java 25 LTS and Docker builder/runtime on Temurin 25. It replaces the initial Java 26 proposal. [Upgrade verification](../openspec/changes/upgrade-backend-java-25/verification.md) remain separate from AWS host acceptance. Earlier Java 17 cleanup measurements are historical; rollback requires the retained Java 17 artifact/image.
 
@@ -107,3 +107,71 @@ at 640 MiB without container swap. Frontend/local Qdrant use additional memory.
 The planned AWS deployment uses remote Qdrant and starts with micro (1 GiB), with
 small as fallback; total-host headroom and real-provider load remain unverified.
 Nano experiment tooling and the alternate Compose profile have been removed.
+
+
+## AWS backend host
+
+`infra/` implements the [backend-host design](../openspec/changes/aws-backend-host/design.md)
+using CDK TypeScript in eu-central-1. The current repository revision replaces the
+public custom-origin/header scheme with a CloudFront VPC Origin. **This revision
+has not been deployed**; earlier live results apply to the old public-origin stack.
+See the [runbook](../infra/RUNBOOK.md) and [verification](../openspec/changes/aws-backend-host/verification.md).
+The edge distribution and control plane remain separately planned.
+
+`bash infra/deploy.sh` is the deployment entry point for all currently registered
+CDK stacks (currently the backend host only). Its ignored JSON config defaults to
+the existing account/profile/region, reuses the stack's Qdrant hostname and requires
+a budget email. The helper builds a unique ARM64 image, deploys infrastructure via
+CloudFormation, pushes to ECR and uses SSM to install current host scripts/config,
+restart and check local readiness. For an existing host it closes historical broad
+ingress before startup and verifies the final managed-SG-only rule before activating
+the new image. EC2 is stopped after verification or ordinary deployment failure by
+default; keeping it running is an explicit config option. This deployment automation
+does not implement the separately planned edge/control plane. Local mocked checks
+are separate from pending live acceptance.
+
+```mermaid
+flowchart LR
+    Viewer[Storefront / visitor] -. planned HTTPS .-> CF[CloudFront distribution]
+    CF -. planned binding .-> Origin[CloudFront VPC Origin / private ENI]
+    Origin --> SG[EC2 SG: 8080 from AWS-managed VPC-origin SG only]
+    subgraph Host[EC2 ARM64: micro evaluation, small fallback]
+      SG --> API[Non-root Spring Boot container: aws profile]
+      Unit[systemd: boot / crash restart] --> API
+      Prep[Host prepare script] --> Unit
+    end
+    SSM[Two provider-key SecureStrings] --> Prep
+    ECR[Private ECR: three immutable images] --> Prep
+    Admin[Operator via Session Manager] --> Host
+    Host --> Egress[Elastic IP + Internet Gateway: outbound requests and stateful replies]
+    Egress --> Services[OpenAI / Qdrant Cloud / ECR / SSM]
+    Control[Planned control plane] -. start / stop instance only .-> Host
+```
+
+CloudFront uses the EC2 private interface. Inbound TCP 8080 is allowed only from
+`CloudFront-VPCOrigins-Service-SG`; no public CIDRs or shared CloudFront prefix-list
+rules are allowed. AWS creates the service group with the VPC Origin; a deployment
+SDK custom resource looks it up by VPC and name after creation, then a separate
+security-group ingress resource references it. The stack never creates or edits
+AWS's group. Do not share the VPC Origin with other accounts.
+
+The public subnet's default route and Elastic IP remain for outbound IPv4 access;
+security groups permit the replies without admitting unsolicited inbound requests.
+No NAT Gateway is introduced. Application origin-verification filters, properties,
+custom headers and SSM origin secrets are removed. Host-local readiness needs no
+special header; readiness semantics and health-only Actuator exposure are unchanged.
+
+The host retains encrypted 8 GB gp3, IMDSv2 with host-only hop limit, no SSH,
+standard CPU credits, emergency swap and capped Docker/journal logs. The container
+uses shared JVM arguments and 640 MiB without swap. Root-only preparation reads
+two provider-key SecureStrings into `/run`, pulls ECR and starts the container.
+Exact-ARN permissions and an explicit deny constrain the SSM managed baseline's
+broader parameter reads. The application does not call AWS APIs.
+
+Deploy network restrictions before activating a filter-free image, and update the
+existing host's prepare script through SSM: editing EC2 user data alone does not
+rerun cloud-init. Edge code must consume `WardrobeBackendVpcOriginId` and
+`WardrobeBackendOriginPrivateDns`; control consumes `WardrobeBackendInstanceId` only.
+The account's early $8 USD alert threshold supports the €10/month target but does
+not enforce it. Recurring scheduling, capacity and warm-stop/start acceptance remain
+pending; leave the host stopped outside deliberate verification until then.

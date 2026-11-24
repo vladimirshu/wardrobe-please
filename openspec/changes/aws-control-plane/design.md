@@ -12,7 +12,7 @@ Pricing and free-tier statements below are assumptions to verify (Lambda request
 - Stop an off-hours session after 20–25 minutes, based on launch time and the five-minute sweeper cadence.
 
 **Non-Goals:**
-- A per-day wake cap: worst case is the instance running 24/7, which is bounded and acceptable (about $8-12/month, assumption). LLM spend is limited by `demo-cost-controls`, not here.
+- A per-day wake cap is not implemented by this proposal. The owner set a €10/month target on 2026-11-23; the backend estimate now shows that always-on operation exceeds it after tax/FX. The earlier acceptance of the 24/7 case is superseded. Revisit the wake policy/cost envelope before unattended operation. LLM spend remains separately limited by `demo-cost-controls`.
 - Heartbeats, idle detection, or session extension while a visitor is active.
 - Visitor and wake-event tracking; basic traffic information uses built-in CloudFront metrics and reports (`aws-edge-hosting`).
 - Authentication of visitors.
@@ -24,7 +24,7 @@ Node.js (arm64) Lambda, `AWS_IAM` auth on the Function URL with a CloudFront ori
 - Response: always HTTP 200 and `{"state":"UP"}` or `{"state":"STARTING"}`; unexpected AWS errors also answer 200 with `STARTING` after logging, because the SPA treats anything but a valid UP control response as "not open" and has its own stuck timeout. The CloudFront behavior uses a caching-disabled policy.
 
 **2. State derived from EC2, no stored state.**
-Algorithm per call: describe the instance; `stopped` → `StartInstances` then STARTING; `pending`/`stopping` → STARTING (a stopping instance is started on a later call, since the SPA nudges again every 3 s); `running` → probe the configured `https://<distribution-domain>/api/v1/health` with a 2 s total timeout, without following redirects → 200 gives UP, anything else STARTING. Idempotent by construction (`StartInstances` on a running instance is a no-op). The instance id and `HEALTHCHECK_URL` come from environment configuration. The health URL is deployment-controlled, never taken from a visitor request, and uses the distribution's default HTTPS domain. Lambda runs outside a VPC and needs neither the EC2 public IP nor SSM access to the origin secret. CloudFront adds `X-Origin-Verify` on the backend hop; the EC2 security group stays restricted to CloudFront. `/api/v1/health` routes to EC2, not the control Lambda, so the probe cannot recurse. Disable caching and 5xx error caching for health; WAF must permit automated probes without browser challenges.
+Algorithm per call: describe the instance; `stopped` → `StartInstances` then STARTING; `pending`/`stopping` → STARTING (a stopping instance is started on a later call, since the SPA nudges again every 3 s); `running` → probe the configured `https://<distribution-domain>/api/v1/health` with a 2 s total timeout, without following redirects → 200 gives UP, anything else STARTING. Idempotent by construction (`StartInstances` on a running instance is a no-op). The instance id and `HEALTHCHECK_URL` come from environment configuration. The health URL is deployment-controlled, never taken from a visitor request, and uses the distribution's default HTTPS domain. Lambda runs outside a VPC and needs neither the EC2 public IP nor SSM access to the origin secret. CloudFront uses the private VPC Origin; the EC2 security group admits only its AWS-managed service security group. No origin secret is used. `/api/v1/health` routes to EC2, not the control Lambda, so the probe cannot recurse. Disable caching and 5xx error caching for health; WAF must permit automated probes without browser challenges.
 
 Create the control function and Function URL first, then the distribution, then set `HEALTHCHECK_URL` in a deployment step. Do not introduce a circular infrastructure dependency between the distribution and Lambda configuration. Until configured, control returns STARTING and logs the configuration error.
 
@@ -45,8 +45,8 @@ Control Lambda: `ec2:DescribeInstances`, `ec2:StartInstances` scoped to the inst
 
 ## Risks / Trade-offs
 
-- [Crawlers or scanners that run JavaScript wake the instance] → Each off-hours session lasts about 20–25 minutes; the cost ceiling is the 24/7 case; the owner accepted auto-wake.
-- [A client repeating `/up` can keep the instance up all night] → Cost bounded as above; a per-day cap is outside this change and would need a separate decision.
+- [Crawlers or scanners that run JavaScript wake the instance] → Each off-hours session lasts about 20–25 minutes; repeated wakes can approach the 24/7 case, which exceeds the newer €10 target. Auto-wake remains planned; its cost policy needs review.
+- [A client repeating `/up` can keep the instance up all night] → The always-on upper bound exceeds the current €10 target; a per-day/runtime cap or revised operating policy needs a separate decision before unattended operation.
 - [Cold start of the Lambda adds latency to the first call] → Node.js on arm64 with small bundle; the call only starts a 60-90 s boot, so extra hundreds of milliseconds do not matter.
 - [Readiness depends on CloudFront as well as EC2] → This checks the visitor-facing route; edge failures, redirects or probe timeouts return STARTING. One additional CloudFront request per running-instance probe; no new network infrastructure. CloudFront-to-EC2 remains HTTP as documented in `aws-edge-hosting`.
 - [Instance state transitions race (stop in progress when the visitor knocks)] → The SPA re-calls `/up` every 3 s; a stopping instance is started by a later call.
@@ -62,5 +62,13 @@ Control Lambda: `ec2:DescribeInstances`, `ec2:StartInstances` scoped to the inst
 
 ## Open Questions
 
-- IaC tool: CDK (TypeScript) is the working default, Terraform the alternative; not decided by the owner.
+- Shared `infra/` now uses owner-approved CDK TypeScript for the host; control-plane implementation remains planned.
 - Custom domain: decided later; the control endpoint works on the CloudFront domain.
+
+## Backend integration status — 2026-11-23
+
+The host stack exports `WardrobeBackendInstanceId`; consume only that value here.
+`WardrobeBackendVpcOriginId` and `WardrobeBackendOriginPrivateDns` are for the edge
+change. The control plane still probes through CloudFront and needs no secret or
+origin address. The host is kept stopped after acceptance until scheduling and the
+updated cost policy are implemented. See [host verification](../aws-backend-host/verification.md).

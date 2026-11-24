@@ -1,33 +1,55 @@
 ## ADDED Requirements
 
-### Requirement: Origin reachable only through CloudFront
-The backend host SHALL accept inbound traffic only on TCP port 8080 from the CloudFront origin-facing managed prefix list, SHALL NOT open port 22 or any other inbound port, and SHALL use an Elastic IP so that its address is stable across stop and start.
+### Requirement: Origin reachable only through CloudFront VPC Origins
+The backend host SHALL accept inbound TCP 8080 only from the AWS-managed
+`CloudFront-VPCOrigins-Service-SG` in its VPC. No inbound rule SHALL admit public
+CIDRs or the shared CloudFront origin-facing prefix list. Port 22 and all other
+inbound ports SHALL remain closed. CloudFront SHALL reach the instance's private
+address through a VPC Origin. The VPC Origin SHALL NOT be shared with other accounts.
 
 #### Scenario: Direct request from the internet
-- **WHEN** a client outside CloudFront connects to the Elastic IP on port 8080
-- **THEN** the connection is not accepted
+- **WHEN** any internet client, including another account's public CloudFront origin, connects to the Elastic IP on port 8080
+- **THEN** the connection is not accepted by the security group
+
+#### Scenario: Request through the project's VPC Origin
+- **WHEN** the project's distribution sends a request over its VPC Origin connection
+- **THEN** the backend security group admits TCP 8080 from the service-managed security group without a secret HTTP header
+
+#### Scenario: Creating the managed security group
+- **WHEN** the VPC Origin is provisioned
+- **THEN** AWS creates its service-managed security group, infrastructure discovers it within the instance VPC after origin creation, and only then adds the source-security-group ingress rule without creating or editing AWS's group
+
+### Requirement: Outbound internet access remains independent
+The instance SHALL retain an Elastic IP and a public-subnet IPv4 default route to
+the VPC's Internet Gateway for outbound access to OpenAI, Qdrant, ECR and SSM.
+NAT Gateway SHALL NOT be required. Replies to allowed outbound connections SHALL
+remain permitted by stateful security-group handling. The public address SHALL NOT
+be used as CloudFront's backend origin address.
+
+#### Scenario: Outbound API request
+- **WHEN** the backend initiates an allowed internet API request
+- **THEN** the request and its reply succeed while unsolicited public inbound connections remain blocked
 
 #### Scenario: Address after restart
 - **WHEN** the instance is stopped and started again
-- **THEN** it has the same public IPv4 address
+- **THEN** it retains the Elastic IP and private primary interface and the deployed VPC Origin readiness path is verified again
 
-### Requirement: Origin verification header
-When `ECOM_ORIGIN_VERIFY_SECRET` is set, the backend SHALL answer HTTP 403 with an empty body to every request whose `X-Origin-Verify` header is missing or differs from the secret, comparing in constant time. When the variable is not set, no verification SHALL be applied.
+### Requirement: No application origin secret
+The backend SHALL NOT implement an origin-verification filter, require an
+origin-verification property or header, fetch an origin-verification SSM parameter,
+or export an origin-secret parameter name. Infrastructure SHALL provide the origin
+ID and private DNS name needed by the edge stack instead.
 
-#### Scenario: Request through CloudFront
-- **WHEN** a request arrives with the correct `X-Origin-Verify` header
-- **THEN** it is processed normally
-
-#### Scenario: Request from another CloudFront distribution
-- **WHEN** a request reaches the origin without the header or with a wrong value
-- **THEN** the response is 403 and the search pipeline is not invoked
+#### Scenario: Host-local readiness
+- **WHEN** the operator requests `/api/v1/health` from the instance without custom headers
+- **THEN** ordinary readiness behavior applies, including 200 after catalog readiness
 
 #### Scenario: Local development
-- **WHEN** the backend runs without `ECOM_ORIGIN_VERIFY_SECRET`
-- **THEN** requests are processed without the header
+- **WHEN** the backend runs locally
+- **THEN** it requires no CloudFront header or origin secret
 
 ### Requirement: Secrets outside the image and the repository
-The system SHALL store the OpenAI API key, the Qdrant Cloud API key and the origin-verification secret as SSM Parameter Store SecureString parameters, SHALL grant the instance role read access to only that parameter path, and SHALL NOT include any secret value in the container image, instance user data, repository files or application logs. The Qdrant hostname SHALL be non-secret deployment configuration; connection diagnostics MAY include it.
+The system SHALL store the OpenAI API key and the Qdrant Cloud API key as SSM Parameter Store SecureString parameters, SHALL grant the instance role read access to only those two exact parameter ARNs, and SHALL NOT include any secret value in the container image, instance user data, repository files or application logs. The Qdrant hostname SHALL be non-secret deployment configuration; connection diagnostics MAY include it.
 
 #### Scenario: Start with secrets
 - **WHEN** the backend container starts on the instance
@@ -81,3 +103,11 @@ The instance SHALL be administrable through SSM Session Manager and SSM Run Comm
 #### Scenario: Deploying a new image
 - **WHEN** the operator runs the documented deploy command after pushing an image tag
 - **THEN** the instance pulls that tag and restarts the service without any inbound connection to the instance
+
+#### Scenario: One-command deployment
+- **WHEN** the operator runs `bash infra/deploy.sh` with the local budget email configured and prerequisites available
+- **THEN** it checks the target account, builds a unique ARM64 image, deploys all registered CDK stacks through CloudFormation, publishes the image and updates the host via SSM
+- **AND** it reuses the existing stack's Qdrant hostname unless overridden, requiring an explicit hostname for a fresh stack
+- **AND** it closes historical broad stack-owned ingress before host startup and verifies managed-group-only ingress before activating the new image
+- **AND** it checks host-local readiness and stops EC2 after completion or ordinary deployment failure by default, unless keeping it running was explicitly configured
+- **AND** it neither reads provider secret values locally nor claims deployment of unimplemented edge/control-plane resources

@@ -1,0 +1,9 @@
+{
+  "profile": "wardrobe",
+  "account_id": "708564192046",
+  "region": "eu-central-1",
+  "budget_email": "",
+  "budget_usd": 8,
+  "qdrant_host": "",
+  "stop_after_deploy": true
+}

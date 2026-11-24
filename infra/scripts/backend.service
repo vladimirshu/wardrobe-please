@@ -1,0 +1,25 @@
+[Unit]
+Description=Wardrobe backend container
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+RuntimeDirectory=wardrobe
+RuntimeDirectoryMode=0700
+ExecStartPre=/usr/local/sbin/wardrobe-prepare
+EnvironmentFile=-/run/wardrobe/image.env
+ExecStartPre=-/usr/bin/docker rm -f wardrobe-backend
+ExecStart=/usr/bin/docker run --rm --name wardrobe-backend --publish 8080:8080 --memory=640m --memory-swap=640m --cap-drop=ALL --security-opt=no-new-privileges --env-file=/run/wardrobe/backend.env ${BACKEND_IMAGE}
+ExecStop=/usr/bin/docker stop --time 30 wardrobe-backend
+ExecStopPost=-/usr/bin/docker rm -f wardrobe-backend
+ExecStopPost=/usr/bin/rm -f /run/wardrobe/backend.env
+Restart=always
+RestartSec=30
+TimeoutStartSec=300
+TimeoutStopSec=45
+
+[Install]
+WantedBy=multi-user.target
