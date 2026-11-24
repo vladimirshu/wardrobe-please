@@ -81,8 +81,10 @@ Deployment is not atomic across CloudFormation, ECR and SSM; on failure inspect 
 reported phase/SSM command and rerun after fixing the cause. Automatic image rollback
 and host Docker-cache pruning are not provided.
 
-**Scope:** currently only `WardrobeBackendHost` is registered. This command does not
-implement/deploy the planned storefront/CloudFront distribution, control plane or
+**Scope:** `WardrobeBackendHost` and `WardrobeControlPlane` are registered, with an
+explicit host-first deployment dependency. The control schedules default disabled;
+its readiness URL and CloudFront grants remain empty until the edge binding below.
+This command does not deploy the planned storefront/CloudFront distribution or
 external Qdrant Cloud cluster, and does not delete the historical origin secret.
 Readiness verifies the host locally, not public HTTPS/search behavior. The wrapper
 has local mocked coverage; live migration/acceptance remains pending.
@@ -130,8 +132,8 @@ or automated budget action.
 ```bash
 npx cdk bootstrap aws://708564192046/eu-central-1 --profile wardrobe
 npx cdk diff --profile wardrobe -c budgetEmail=ADDRESS
-npx cdk deploy --profile wardrobe -c budgetEmail=ADDRESS \
-  --parameters QdrantHost=YOUR_CLUSTER_HOSTNAME --parameters ImageTag=YOUR_NEW_IMMUTABLE_TAG \
+npx cdk deploy --all --profile wardrobe -c budgetEmail=ADDRESS \
+  --parameters WardrobeBackendHost:QdrantHost=YOUR_CLUSTER_HOSTNAME --parameters WardrobeBackendHost:ImageTag=YOUR_NEW_IMMUTABLE_TAG \
   --outputs-file outputs.json
 ```
 
@@ -229,6 +231,89 @@ can reassociate with a replacement; no catalog or application state lives on EBS
 Secret reads are restricted by exact ARN, including an explicit deny overriding
 the SSM managed policy's broad parameter-read permissions. ECR is retained on
 stack deletion; delete retained images/repository deliberately only when retired.
+
+## Control plane (implemented, not yet deployed)
+
+`WardrobeControlPlane` imports only `WardrobeBackendInstanceId`. Its Node 22 ARM64
+functions run outside a VPC; they have describe plus instance-scoped start (control)
+or stop (sweeper) permission and one-week log retention. DescribeInstances requires
+`Resource: *`. No SSM/secret, public-IP or analytics-table permissions are present.
+All three Scheduler resources default disabled with `SchedulesEnabled=false`.
+Keep them disabled until the operating cost policy is resolved and live checks pass.
+Disable them before running the host deployment wrapper after schedules have been enabled.
+
+After deploying the host, deploy control independently if not using the wrapper:
+
+```bash
+cd infra
+AWS_PROFILE=wardrobe AWS_REGION=eu-central-1 npx cdk diff WardrobeControlPlane
+AWS_PROFILE=wardrobe AWS_REGION=eu-central-1 npx cdk deploy WardrobeControlPlane --exclusively
+```
+
+The edge change must use `WardrobeControlFunctionUrl` as the `/api/v1/control/*`
+origin with Lambda OAC (always sign), `AWS_IAM` and caching disabled. It must route
+`/api/v1/health` to the backend VPC Origin, disable response and 5xx error caching,
+and allow automated probes through the default WAF protection. Control cannot
+confirm UP until that route works. `WardrobeControlFunctionArn` is also exported.
+Then, from the repository root:
+
+```bash
+AWS_PROFILE=wardrobe AWS_REGION=eu-central-1 bash infra/bind-control.sh DISTRIBUTION_ID
+```
+
+The helper reads the distribution's actual default domain using AWS CLI, prints a
+control-stack diff, and redeploys only control with plain `DistributionId` and
+`HealthcheckUrl` parameters. It adds both CloudFront invocation permissions, scoped
+to that distribution ARN, and sets `HEALTHCHECK_URL` without a reverse stack
+reference. Until bound, there is no CloudFront resource grant and a missing URL
+returns HTTP 200 STARTING without starting EC2. Do not configure Lambda directly
+with UpdateFunctionConfiguration: the parameters keep configuration in CloudFormation.
+Subsequent CDK deployments reuse existing parameter values unless explicitly changed.
+Direct anonymous Function URL calls must return 403; trusted administrators retain
+their IAM access. No public URL grant is created.
+
+Enable all three schedules only after acceptance and the cost-policy decision:
+
+```bash
+cd infra
+AWS_PROFILE=wardrobe AWS_REGION=eu-central-1 npx cdk deploy WardrobeControlPlane --exclusively --parameters SchedulesEnabled=true
+```
+
+Disable all three using the same command with `SchedulesEnabled=false`. This stops
+future scheduled invocations; it neither stops EC2 nor disables visitor wake.
+For emergency shutdown, remove the edge control behavior/grants or temporarily set
+the control function's reserved concurrency to zero, stop the instance manually,
+and restore concurrency later with `delete-function-concurrency`. Record emergency
+changes and reconcile them with the deployment before resuming normal operation.
+Scheduled start/stop targets have no retries and a 60-second maximum event age to
+avoid delayed starts beyond a boundary. The sweeper next runs within five minutes.
+
+Manual host control (from any directory):
+
+```bash
+aws ec2 start-instances --profile wardrobe --region eu-central-1 --instance-ids INSTANCE_ID
+aws ec2 stop-instances --profile wardrobe --region eu-central-1 --instance-ids INSTANCE_ID
+```
+
+Edit `wardrobe-fe/src/config/opening-hours.json` to change days, times or zone.
+Use unique comma-separated lowercase days, an IANA zone and same-day HH:mm times
+with `from < to`. CDK fails synthesis for invalid settings. Rebuild and redeploy
+both the frontend and control stack together; the JSON is read at synthesis and
+serialized into the sweeper environment. Current start/stop are Mon–Fri 08:00/22:00
+Europe/Berlin; the interval includes 08:00 and excludes 22:00. Neither start nor
+stop runs at weekends. The sweeper checks every five minutes and stops running
+instances outside the window at >=20 minutes since LaunchTime. A weekday 21:50
+wake is cut short by the 22:00 stop; a weekend 21:50 wake continues until 22:10–22:15.
+There is no heartbeat, session extension, wake cap or spending cap.
+
+Live acceptance remains pending: compare LaunchTime before/after two stop/start
+cycles, confirm STARTING then UP through CloudFront, direct-access rejection,
+uncached readiness and WAF compatibility; observe a weekday and weekend including
+a visitor wake. Keep the host stopped outside deliberate checks. After the first
+operating week, inspect Lambda, EventBridge Scheduler and EC2 compute usage in
+Cost Explorer (exclusive end date), compare with the 24/7 ceiling below, and verify
+actual delivery of the host budget's 80%/100% alerts. Estimates or configured alert
+thresholds do not prove delivery. Record evidence in the control-plane verification file.
 
 ## Monthly cost estimate — 2026-11-23
 

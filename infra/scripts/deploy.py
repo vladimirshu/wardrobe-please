@@ -244,9 +244,9 @@ def main():
             run(*docker, 'push', f'{repository}:{tag}')
         activate(instance_id, {'region': config['region'], 'image': repository,
                                'tag': tag, 'qdrantHost': qdrant})
-        print('Deployment verified. CloudFront distribution/control plane are not implemented.', flush=True)
+        print('Host deployment verified. Control plane deployed with schedules disabled by default; edge binding/acceptance is separate.', flush=True)
     finally:
-        # Scheduling is not implemented: stop even after failures unless explicitly disabled.
+        # Stop after verification/failure unless explicitly disabled. Control schedules default off.
         if config['stop_after_deploy']:
             latest = stack()
             ids = {i for i in (existing_id, output(latest, 'InstanceId') if latest else None) if i}

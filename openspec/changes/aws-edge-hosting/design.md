@@ -28,6 +28,15 @@ Everything about pricing, plan inclusions (flat-rate plan, WAF, custom domain, L
     /*  (default)      → S3 bucket             (OAC, caching enabled)
 
 Behavior order puts the more specific `control` path first. Control Lambda probes `https://<distribution-domain>/api/v1/health`, which matches the EC2 behavior and never invokes Lambda again; CloudFront reaches the backend through its private VPC Origin. Keep health responses and 5xx errors uncached. The `/api/v1` prefix means no URL rewriting function is needed.
+
+Control-plane implementation is present locally as of 2026-11-24; deployment is
+pending. Consume `WardrobeControlFunctionUrl` (and `WardrobeControlFunctionArn` if
+needed) from `WardrobeControlPlane`. Create the edge with Lambda OAC, then run
+`infra/bind-control.sh DISTRIBUTION_ID` to set the readiness URL and conditional
+distribution-scoped Lambda permissions through a second control-stack deployment.
+Do not add a reverse CloudFormation reference from control to edge. The helper
+supplies plain parameters; control remains fail-closed until configured. All control
+schedules default disabled pending acceptance and the operating-cost decision.
 The planned backend behavior must allow `POST /api/v1/search`, forward its JSON body and `Content-Type` unchanged, and disable caching for search. A CloudFront allowed-method preset may include other methods; backend routes remain unchanged. Verify body/header passthrough, uncached responses and compatibility of POST search with the plan’s default WAF protection after deployment. Do not add path-specific WAF rules or custom responses. Do not introduce request-body logging or analytics tracking.
 
 - Alternative: separate subdomains per origin (needs a domain and CORS). Rejected.

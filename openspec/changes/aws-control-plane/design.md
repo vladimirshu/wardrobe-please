@@ -41,7 +41,7 @@ A second Lambda runs every 5 minutes: if the instance is `running`, now is outsi
 The control endpoint does not persist invocation or visitor events, accept campaign tags for tracking, or require an analytics table. Basic traffic curiosity is served by built-in CloudFront metrics and reports; they do not count actual EC2 starts. Existing error/configuration logging remains operational logging.
 
 **6. Least privilege.**
-Control Lambda: `ec2:DescribeInstances`, `ec2:StartInstances` scoped to the instance ARN. It has no Parameter Store permission and no origin secret. Sweeper Lambda: describe and `StopInstances` on the instance. The Scheduler role may start/stop only this instance.
+Control Lambda: `ec2:DescribeInstances` on `*` (this API has no resource-level permission), `ec2:StartInstances` scoped to the instance ARN. It has no Parameter Store permission and no origin secret. Sweeper Lambda: describe and `StopInstances` on the instance. The Scheduler role may start/stop only this instance.
 
 ## Risks / Trade-offs
 
@@ -62,7 +62,7 @@ Control Lambda: `ec2:DescribeInstances`, `ec2:StartInstances` scoped to the inst
 
 ## Open Questions
 
-- Shared `infra/` now uses owner-approved CDK TypeScript for the host; control-plane implementation remains planned.
+- Shared `infra/` now uses owner-approved CDK TypeScript for the host; control-plane implementation is now present locally; deployment is pending.
 - Custom domain: decided later; the control endpoint works on the CloudFront domain.
 
 ## Backend integration status — 2026-11-23
@@ -72,3 +72,35 @@ The host stack exports `WardrobeBackendInstanceId`; consume only that value here
 change. The control plane still probes through CloudFront and needs no secret or
 origin address. The host is kept stopped after acceptance until scheduling and the
 updated cost policy are implemented. See [host verification](../aws-backend-host/verification.md).
+
+## Implementation status — 2026-11-24
+
+Implemented in `infra/lib/control-plane-stack.ts`, `infra/functions/control.ts` and
+`infra/functions/sweeper.ts`. Node 22 ARM64, bundled/pinned EC2 SDK, separate roles,
+explicit one-week log groups and no VPC attachment. The host/control app dependency
+orders first deployment; only the instance-ID export is imported. Describe is
+wildcard-scoped because AWS does not support an instance ARN for DescribeInstances.
+
+Function URL uses AWS_IAM. `DistributionId` and `HealthcheckUrl` parameters default
+empty; `infra/bind-control.sh` resolves the actual distribution domain and redeploys
+only control after edge creation. Conditional permissions grant both required
+Lambda invoke actions to that distribution; InvokeFunction is constrained to URL
+invocation. There is no reverse CloudFormation reference or out-of-band Lambda
+configuration edit. Before valid readiness configuration, control returns STARTING
+without describing or starting the instance.
+
+All three Scheduler resources default DISABLED via `SchedulesEnabled=false`, pending
+acceptance and the cost-policy decision. Scheduler role trust is scoped to the
+account and schedule group (Scheduler supplies the group ARN, not schedule ARN).
+Targets use no retries and a 60-second maximum event age to limit delayed starts.
+The same validated frontend JSON supplies weekday crons/time zone and the sweeper
+environment. Daytime schedules and sweeper stop timing are covered by fixed-clock
+unit tests. Same-day windows only are supported; invalid configuration fails synthesis.
+
+AWS documents LaunchTime as the last launch time, supporting the chosen design;
+actual stop/start cycle verification is still pending. See [AWS Instance API](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_Instance.html).
+CloudFront's two invoke permissions follow the [OAC documentation](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-lambda.html);
+Scheduler trust follows [confused-deputy guidance](https://docs.aws.amazon.com/scheduler/latest/UserGuide/cross-service-confused-deputy-prevention.html).
+No AWS resources were changed during implementation. Live edge integration depends
+on `aws-edge-hosting`; weekday/weekend observation and first-week billing evidence
+remain outstanding. See [verification](verification.md).

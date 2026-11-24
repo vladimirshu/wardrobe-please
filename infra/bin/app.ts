@@ -1,6 +1,11 @@
 import { App } from 'aws-cdk-lib';
 import { BackendHostStack } from '../lib/backend-host-stack';
+import { ControlPlaneStack } from '../lib/control-plane-stack';
 const app = new App();
-new BackendHostStack(app, 'WardrobeBackendHost', {
+const host = new BackendHostStack(app, 'WardrobeBackendHost', {
   env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION ?? 'eu-central-1' },
 });
+const control = new ControlPlaneStack(app, 'WardrobeControlPlane', {
+  env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION ?? 'eu-central-1' },
+});
+control.addStackDependency(host);

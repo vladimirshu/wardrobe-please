@@ -73,7 +73,7 @@ Qdrant can run locally or in Qdrant Cloud. OpenAI supplies embeddings with eithe
 
 Product refinement logs the candidate count, response time across any schema retry, model, and finish reason at INFO. DEBUG adds token usage and the final validated SKUs.
 
-The planned [provider-managed MCP search flow](../wardrobe-be/openspec/changes/latency-first-mcp-catalog-search/design.md), [AWS edge](../openspec/changes/aws-edge-hosting/design.md), and [wake-up flow](../openspec/changes/aws-control-plane/design.md) are documented in OpenSpec.
+The planned [provider-managed MCP search flow](../wardrobe-be/openspec/changes/latency-first-mcp-catalog-search/design.md) and [AWS edge](../openspec/changes/aws-edge-hosting/design.md) are documented in OpenSpec. The [wake-up flow](../openspec/changes/aws-control-plane/design.md) is implemented locally; deployment and live acceptance remain pending.
 
 **Planned AWS edge protection:** use AWS-managed `SecurityHeadersPolicy` and the selected CloudFront plan’s default WAF protection. No custom response-header policy, CSP, WAF rules, path exclusions or block responses are planned. Existing backend search rate limits remain unchanged; edge blocks retain AWS’s default response. Verify normal page, POST search and automated readiness requests against that default protection.
 
@@ -93,7 +93,7 @@ Supported storefront requests keep search fields out of request URLs and URL acc
 are summarized in OpenSpec. The nano experiments are retired; current runtime
 limits are documented below. AWS total-host and real-provider validation remain pending.
 
-**Planned AWS schedule:** both recurring start (08:00) and stop (22:00) run Monday to Friday in Europe/Berlin. No recurring start or stop runs at weekends; visitor-triggered weekend wake and off-hours shutdown after 20–25 minutes remain available.
+**Implemented AWS schedule (not deployed, disabled by default):** both recurring start (08:00) and stop (22:00) run Monday to Friday in Europe/Berlin. No recurring start or stop runs at weekends; visitor-triggered weekend wake and off-hours shutdown after 20–25 minutes remain available.
 
 **Implemented deployment logging configuration:** `application-aws.yml` is an ordinary Spring Boot profile activated with `SPRING_PROFILES_ACTIVE=aws`, not an AWS login profile or remote logging service. It retains payload-sensitive logger restrictions. Mock-provider tests cover successful query analysis, empty/schema-invalid/malformed responses and provider errors; live-host checks remain separate. Unknown refinement SKUs are logged without their untrusted values. Provider exceptions from refinement are converted to a generic assistant failure without retaining raw exception causes, preventing servlet error logging from exposing payloads. The exception handler also sanitizes OpenAI/HTTP provider failures from embedding and retrieval.
 
@@ -116,10 +116,10 @@ using CDK TypeScript in eu-central-1. The current repository revision replaces t
 public custom-origin/header scheme with a CloudFront VPC Origin. **This revision
 has not been deployed**; earlier live results apply to the old public-origin stack.
 See the [runbook](../infra/RUNBOOK.md) and [verification](../openspec/changes/aws-backend-host/verification.md).
-The edge distribution and control plane remain separately planned.
+The edge distribution remains planned. The control plane is implemented locally and has not been deployed.
 
 `bash infra/deploy.sh` is the deployment entry point for all currently registered
-CDK stacks (currently the backend host only). Its ignored JSON config defaults to
+CDK stacks (backend host, then control plane with schedules disabled by default). Its ignored JSON config defaults to
 the existing account/profile/region, reuses the stack's Qdrant hostname and requires
 a budget email. The helper builds a unique ARM64 image, deploys infrastructure via
 CloudFormation, pushes to ECR and uses SSM to install current host scripts/config,
@@ -127,7 +127,7 @@ restart and check local readiness. For an existing host it closes historical bro
 ingress before startup and verifies the final managed-SG-only rule before activating
 the new image. EC2 is stopped after verification or ordinary deployment failure by
 default; keeping it running is an explicit config option. This deployment automation
-does not implement the separately planned edge/control plane. Local mocked checks
+does not implement the separately planned edge distribution or bind control to it. Local mocked checks
 are separate from pending live acceptance.
 
 ```mermaid
@@ -145,7 +145,12 @@ flowchart LR
     Admin[Operator via Session Manager] --> Host
     Host --> Egress[Elastic IP + Internet Gateway: outbound requests and stateful replies]
     Egress --> Services[OpenAI / Qdrant Cloud / ECR / SSM]
-    Control[Planned control plane] -. start / stop instance only .-> Host
+    Control[Control Lambda: IAM Function URL, not deployed] -. start / describe .-> Host
+    CF -. planned OAC binding .-> Control
+    Control -. planned HTTPS readiness probe .-> CF
+    Schedules[Scheduler: disabled by default] -. weekday start / stop .-> Host
+    Schedules -. every 5 minutes .-> Sweeper[Sweeper Lambda]
+    Sweeper -. off-hours stop at uptime >=20 minutes .-> Host
 ```
 
 CloudFront uses the EC2 private interface. Inbound TCP 8080 is allowed only from
@@ -175,3 +180,30 @@ rerun cloud-init. Edge code must consume `WardrobeBackendVpcOriginId` and
 The account's early $8 USD alert threshold supports the €10/month target but does
 not enforce it. Recurring scheduling, capacity and warm-stop/start acceptance remain
 pending; leave the host stopped outside deliberate verification until then.
+
+## AWS control plane
+
+`infra/lib/control-plane-stack.ts` implements two Node 22 ARM64 Lambdas outside a
+VPC. Control imports the host instance ID, describes its state and starts a stopped
+host. Pending/stopping states return STARTING. Running hosts return UP only after
+HTTP 200 from the configured default CloudFront HTTPS `/api/v1/health` route within
+two seconds, without redirects or secrets. Failures return HTTP 200 STARTING with
+no-cache headers and an operational error log; missing/invalid configuration fails
+closed before any EC2 call. Repeated readiness calls do not restart or extend a session.
+
+The Function URL uses AWS_IAM. Edge binding adds `InvokeFunctionUrl` and
+`InvokeFunction` (via URL only) grants for the one distribution ARN. The edge must
+supply OAC and uncached control/health behaviors; that infrastructure and WAF
+acceptance remain pending. `infra/bind-control.sh` resolves the distribution domain
+and redeploys control with ordinary parameters after edge creation, avoiding a
+circular reference. Control exports its URL/ARN for the edge; it receives no origin
+address, secret, SSM permission or visitor analytics storage.
+
+CDK validates the frontend opening-hours JSON and uses it for both weekday Scheduler
+universal EC2 targets and the five-minute sweeper. The sweeper stops only running,
+off-hours hosts with LaunchTime at least 20 minutes old. DescribeInstances requires
+wildcard resource scope; start/stop permissions are limited to the host ARN.
+Scheduler roles trust only this account's schedule group; functions have separate
+roles and one-week log retention. All schedules default disabled. The implementation
+has no wake cap; the €10 operating policy and live LaunchTime, weekday/weekend,
+edge-access and week-one cost checks remain pending. See the [runbook](../infra/RUNBOOK.md).
