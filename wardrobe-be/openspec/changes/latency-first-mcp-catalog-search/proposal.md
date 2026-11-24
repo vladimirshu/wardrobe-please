@@ -2,9 +2,9 @@
 
 Storefront search uses one chat request to analyze the query and a second to filter the retrieved candidates when there are matches. This planned change moves orchestration to the provider, exposes catalog retrieval to MCP clients, and improves hard-constraint matching.
 
-## Prerequisite
+## Existing provider integration
 
-Complete and verify [migrate-to-openai-luna](../archive/2026-11-17-migrate-to-openai-luna/proposal.md) before implementing this change. It supplies the GPT-6 Luna configuration used by storefront search. This change adds the Responses integration for provider-managed MCP.
+The existing [migrate-to-openai-luna](../archive/2026-11-17-migrate-to-openai-luna/proposal.md) implementation supplies the GPT-6 Luna configuration used by storefront search. Separate verification of that migration is not a prerequisite for this change. This change adds the Responses integration for provider-managed MCP and verifies the MCP workflow before rollout.
 
 ## What Changes
 

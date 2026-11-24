@@ -2,7 +2,7 @@
 
 `QueryAnalyzer` combines safety, apparel relevance, conversational rewrite, price extraction and negative examples in one chat completion. Qdrant applies the price constraint during retrieval. When there are candidates, the backend sends a second chat request to select SKUs and returns the matching catalog records in retrieval order. The retriever currently embeds the positive query and negative examples in separate calls. Catalog sizes currently sit in a comma-separated payload string.
 
- [migrate-to-openai-luna](../archive/2026-11-17-migrate-to-openai-luna/proposal.md) must be complete first. This change adds a Responses integration with one provider-managed MCP tool for the MCP search flow. OpenAI can execute the tool and resume generation inside that request. [OpenAI remote MCP](https://developers.openai.com/api/docs/guides/tools-connectors-mcp)
+The existing [migrate-to-openai-luna](../archive/2026-11-17-migrate-to-openai-luna/proposal.md) implementation supplies the provider configuration; separate migration verification is not a prerequisite. This change adds a Responses integration with one provider-managed MCP tool for the MCP search flow. OpenAI can execute the tool and resume generation inside that request. [OpenAI remote MCP](https://developers.openai.com/api/docs/guides/tools-connectors-mcp)
 
 ## Goals
 
@@ -40,7 +40,7 @@ Return either a structured refusal or a successful interpretation with selected 
 
 ## Migration Plan
 
-1. Confirm that the GPT-6 Luna integration is implemented and verify the Responses API and authenticated MCP tool workflow with an opt-in smoke test.
+1. Build on the existing GPT-6 Luna configuration without requiring separate migration verification. Verify the Responses API and authenticated MCP tool workflow with an opt-in smoke test before rollout; this live check does not block local implementation.
 2. Add the normalized size payload and index. Change the catalog revision calculation to include the payload schema version, verify the new fields across the active catalog, and enable size filtering after readiness passes. Requests that require size filtering fail explicitly while the new payload is unavailable. Legacy records remain readable by existing product mapping.
 3. Enable provider connectivity to MCP with scoped authentication and verify the one-request flow and candidate evidence. Verify the complete search workflow in an isolated deployment, including rejection before retrieval, conversation refinements, exact constraints, candidate selection and dependency failures. Switch storefront traffic after these functional checks pass. Retain the previous direct path during rollout for operator rollback. A failed MCP request surfaces an error during normal operation.
 

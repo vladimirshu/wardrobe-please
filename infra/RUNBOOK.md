@@ -364,7 +364,7 @@ Origins), attach a web ACL, or enable paid Shield/logs/metrics during setup.
 Included Shield Standard, private origins, S3/Lambda OAC and backend search limits
 remain. There is no application-layer edge filtering or wake spending cap.
 The scheduled-host estimate plus small operational/S3 allowances is about
-€9/month including illustrative VAT; see [pricing evaluation](../openspec/changes/aws-edge-hosting/verification.md).
+€9/month including illustrative VAT; see [pricing evaluation](../openspec/changes/archive/2026-11-24-aws-edge-hosting/verification.md).
 Account/organization allowance availability and actual costs are unverified.
 
 ### Provision and publish
@@ -428,7 +428,10 @@ HttpOrigin exists. Inspect the service-managed SG reference: the host admits TCP
 Both API behaviors use CachingDisabled and AllViewerExceptHostHeader, preserving
 Content-Type, request body, query strings and cookies while setting the origin
 Host. Control supports GET/HEAD; backend permits POST. Managed SecurityHeadersPolicy
-is on the static behavior. Zero error TTLs cover 500/501/502/503/504 distribution-wide,
+is on the static behavior. Static caching uses `CachingOptimized` without an origin
+request policy: do not forward the viewer Host to S3 (for example via
+`UseOriginCacheControlHeaders`), because S3 uses Host for bucket routing. The
+policy’s one-second minimum is below the deployed 60-second/one-year cache headers. Zero error TTLs cover 500/501/502/503/504 distribution-wide,
 not individual paths, and do not replace statuses/bodies. S3 errors have AWS's
 one-second floor. Unknown static paths return S3 errors; there is no SPA fallback
 that could swallow an API failure. Missing control binding fails closed.
@@ -486,3 +489,15 @@ until deliberately deleted. Never delete the bucket before disabling/removing it
 CloudFront association. Optional custom-domain ACM (us-east-1)/DNS and origin TLS
 remain deferred until explicitly selected; HTTPS origin also requires updating the
 host's VPC Origin protocol/port and SG, not just the distribution.
+
+
+### Static XML NotFound with existing S3 objects
+
+If both `/` and `/index.html` return XML NotFound while the bucket contains
+`index.html`, inspect the default behavior's cache policy. `UseOriginCacheControlHeaders`
+includes the viewer Host and is unsuitable for this S3 behavior. Repository code
+now selects managed `CachingOptimized` with no origin request policy. Deploy the
+edge stack update, wait for propagation, then invalidate `/` and `/index.html`
+(or publish through the SPA helper, which creates those invalidations). Uploading
+SPA files alone does not update the distribution policy. Recheck the page and
+its referenced assets after invalidation completes; no public bucket access is needed.

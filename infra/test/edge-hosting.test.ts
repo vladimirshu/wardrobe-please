@@ -28,7 +28,9 @@ test('private three-origin edge preserves API routing, payload forwarding and re
   assert.equal(config.WebACLId, undefined);
   assert.equal(config.Logging, undefined);
   assert.equal(config.DefaultCacheBehavior.ResponseHeadersPolicyId, '67f7725c-6f97-4210-82d7-5512b31e9d03');
-  assert.equal(config.DefaultCacheBehavior.CachePolicyId, '83da9c7e-98b4-4e11-a168-04f0df8e2c65');
+  // S3 must receive its own Host, never the viewer domain from a cache/request policy.
+  assert.equal(config.DefaultCacheBehavior.CachePolicyId, '658327ea-f89d-4fab-a63d-7e88639e58f6');
+  assert.equal(config.DefaultCacheBehavior.OriginRequestPolicyId, undefined);
   assert.deepEqual(config.CacheBehaviors.map((b: any) => b.PathPattern), ['/api/v1/control/*', '/api/v1/*']);
   for (const behavior of config.CacheBehaviors) {
     assert.equal(behavior.CachePolicyId, '4135ea2d-6df8-44a3-9df3-4b5a84be39ad');

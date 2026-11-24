@@ -73,9 +73,9 @@ Qdrant can run locally or in Qdrant Cloud. OpenAI supplies embeddings with eithe
 
 Product refinement logs the candidate count, response time across any schema retry, model, and finish reason at INFO. DEBUG adds token usage and the final validated SKUs.
 
-The planned [provider-managed MCP search flow](../wardrobe-be/openspec/changes/latency-first-mcp-catalog-search/design.md) is documented in OpenSpec. The [AWS edge](../openspec/changes/aws-edge-hosting/design.md) and [wake-up flow](../openspec/changes/aws-control-plane/design.md) are implemented locally; deployment and live acceptance remain pending.
+The planned [provider-managed MCP search flow](../wardrobe-be/openspec/changes/latency-first-mcp-catalog-search/design.md) is documented in OpenSpec. The [AWS edge](../openspec/changes/archive/2026-11-24-aws-edge-hosting/design.md) and [wake-up flow](../openspec/changes/archive/2026-11-24-aws-control-plane/design.md) are implemented locally; deployment and live acceptance remain pending.
 
-**Implemented AWS edge protection (not deployed):** pay-as-you-go CloudFront without WAF, as approved on 2026-11-24. S3 and Lambda use OAC; backend uses the imported private VPC Origin. AWS-managed `SecurityHeadersPolicy` is attached to the static behavior without overrides or CSP. Included Shield Standard remains; there is no WAF application-request filtering, paid Shield, edge rate rule or wake spending cap. Backend search limits remain unchanged. API caching is disabled and configurable 5xx error minimum TTLs are zero distribution-wide without status/body remapping. Backend connections use one attempt, three seconds connect and 30 seconds response timeout; POST body/Content-Type are forwarded without rewriting. Control GET/HEAD routing precedes backend routing, so readiness probes cannot recurse into control.
+**Implemented AWS edge protection (not deployed):** pay-as-you-go CloudFront without WAF, as approved on 2026-11-24. S3 and Lambda use OAC; backend uses the imported private VPC Origin. The static behavior uses managed `CachingOptimized` without an origin request policy, so S3 receives its bucket Host rather than the viewer domain; 60-second/one-year object headers govern caching above the policy’s one-second floor. AWS-managed `SecurityHeadersPolicy` is attached to the static behavior without overrides or CSP. Included Shield Standard remains; there is no WAF application-request filtering, paid Shield, edge rate rule or wake spending cap. Backend search limits remain unchanged. API caching is disabled and configurable 5xx error minimum TTLs are zero distribution-wide without status/body remapping. Backend connections use one attempt, three seconds connect and 30 seconds response timeout; POST body/Content-Type are forwarded without rewriting. Control GET/HEAD routing precedes backend routing, so readiness probes cannot recurse into control.
 
 **Implemented AWS traffic visibility configuration (live data pending):** use default CloudFront metrics and available console reports only, with no additional analytics charges or configuration. No access-log delivery, analytics buckets/databases, wake-event records, tracking scripts or custom reporting pipeline are planned. These reports provide approximate request/traffic information, not visitor sessions or campaign attribution. Backend operational logging remains separate.
 
@@ -111,13 +111,13 @@ Nano experiment tooling and the alternate Compose profile have been removed.
 
 ## AWS backend host
 
-**Edge pricing decision (2026-11-24):** the owner selected pay-as-you-go without WAF. The rejected Free flat-rate plan excludes VPC Origins. The scheduled-host estimate is about €9/month with illustrative VAT and little margin; allowance availability, actual tax/FX and week-one costs remain unverified. See [edge verification](../openspec/changes/aws-edge-hosting/verification.md).
+**Edge pricing decision (2026-11-24):** the owner selected pay-as-you-go without WAF. The rejected Free flat-rate plan excludes VPC Origins. The scheduled-host estimate is about €9/month with illustrative VAT and little margin; allowance availability, actual tax/FX and week-one costs remain unverified. See [edge verification](../openspec/changes/archive/2026-11-24-aws-edge-hosting/verification.md).
 
-`infra/` implements the [backend-host design](../openspec/changes/aws-backend-host/design.md)
+`infra/` implements the [backend-host design](../openspec/changes/archive/2026-11-24-aws-backend-host/design.md)
 using CDK TypeScript in eu-central-1. The current repository revision replaces the
 public custom-origin/header scheme with a CloudFront VPC Origin. **This revision
 has not been deployed**; earlier live results apply to the old public-origin stack.
-See the [runbook](../infra/RUNBOOK.md) and [verification](../openspec/changes/aws-backend-host/verification.md).
+See the [runbook](../infra/RUNBOOK.md) and [verification](../openspec/changes/archive/2026-11-24-aws-backend-host/verification.md).
 The edge distribution and control plane are also implemented locally and have not been deployed.
 
 `bash infra/deploy.sh` is the deployment entry point for all currently registered
@@ -212,3 +212,14 @@ The wrapper passes it explicitly on each deploy; this is independent of immediat
 host shutdown controlled by `stop_after_deploy`. The implementation
 has no wake cap; the €10 operating policy and live LaunchTime, weekday/weekend,
 edge-access and week-one cost checks remain pending. See the [runbook](../infra/RUNBOOK.md).
+
+
+## AWS specification handoff — 2026-11-24
+
+The implemented `aws-backend-host`, `aws-control-plane` and `aws-edge-hosting`
+changes are archived and synced into the main OpenSpec specifications at the
+owner's request. Vladimir will perform live acceptance, operational observation
+and cost verification himself. The archive task/verification records retain the
+unchecked items, including deferred optional domain/TLS work. Archive status does
+not establish deployment or live verification; the local S3 cache-policy correction
+still requires deployment and confirmation of recovery.
