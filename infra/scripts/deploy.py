@@ -244,7 +244,10 @@ def main():
             run(*docker, 'push', f'{repository}:{tag}')
         activate(instance_id, {'region': config['region'], 'image': repository,
                                'tag': tag, 'qdrantHost': qdrant})
-        print('Host deployment verified. Control plane deployed with schedules disabled by default; edge binding/acceptance is separate.', flush=True)
+        edge = aws('cloudformation', 'describe-stacks', '--stack-name', 'WardrobeEdgeHosting')['Stacks'][0]
+        run('bash', 'bind-control.sh', output(edge, 'DistributionId'))
+        run('bash', 'deploy-spa.sh')
+        print('Host verified, edge/control bound and SPA published. Live edge acceptance remains separate; schedules retain their configured state.', flush=True)
     finally:
         # Stop after verification/failure unless explicitly disabled. Control schedules default off.
         if config['stop_after_deploy']:

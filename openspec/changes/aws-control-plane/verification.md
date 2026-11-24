@@ -38,10 +38,10 @@ No AWS resources were changed. Do not treat local assertions as deployed behavio
 1. **Task 2.4:** record LaunchTime before/after at least two stop/start cycles. AWS
    documents it as last launch time, but host-specific behavior has not been observed.
    If it does not advance, use the design's one-time-schedule alternative before acceptance.
-2. **Task 4.1:** deploy host migration/control and implement the edge distribution,
+2. **Task 4.1:** deploy host migration/control and the locally implemented edge distribution,
    bind the Function URL/OAC and readiness URL; verify stopped -> STARTING -> UP,
    repeated calls, direct anonymous URL rejection, EC2 ingress rejection, uncached
-   health/5xx, WAF automated probes and absence of secret/SSM access in deployed roles.
+   health/5xx, automated probes without WAF/browser challenges and absence of secret/SSM access in deployed roles.
 3. **Task 4.2:** after the cost-policy decision, enable schedules and observe a full
    weekday, no weekend recurring start/stop, and a weekend wake stopping in 20–25
    minutes. Keep EC2 stopped outside deliberate acceptance until then.
@@ -49,6 +49,8 @@ No AWS resources were changed. Do not treat local assertions as deployed behavio
    Scheduler and EC2 compute actuals against the runbook ceiling, plus actual delivery
    of configured budget alerts. There is no spending or wake cap in this change.
 
-The edge change is still planned; no CloudFront distribution or readiness/WAF
-acceptance is provided by this implementation. The €10 operating-policy decision
-remains unresolved, so schedules must remain disabled for unattended use.
+The edge is now implemented locally with owner-approved pay-as-you-go pricing
+without WAF (2026-11-24); live CloudFront/readiness acceptance remains pending.
+The estimated scheduled-host total fits €10 with little margin, but this does not
+establish observed costs or approve routine schedule enablement. Keep schedules
+disabled until live acceptance and the operating-policy checks pass.

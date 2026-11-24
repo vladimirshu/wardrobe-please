@@ -73,17 +73,17 @@ Qdrant can run locally or in Qdrant Cloud. OpenAI supplies embeddings with eithe
 
 Product refinement logs the candidate count, response time across any schema retry, model, and finish reason at INFO. DEBUG adds token usage and the final validated SKUs.
 
-The planned [provider-managed MCP search flow](../wardrobe-be/openspec/changes/latency-first-mcp-catalog-search/design.md) and [AWS edge](../openspec/changes/aws-edge-hosting/design.md) are documented in OpenSpec. The [wake-up flow](../openspec/changes/aws-control-plane/design.md) is implemented locally; deployment and live acceptance remain pending.
+The planned [provider-managed MCP search flow](../wardrobe-be/openspec/changes/latency-first-mcp-catalog-search/design.md) is documented in OpenSpec. The [AWS edge](../openspec/changes/aws-edge-hosting/design.md) and [wake-up flow](../openspec/changes/aws-control-plane/design.md) are implemented locally; deployment and live acceptance remain pending.
 
-**Planned AWS edge protection:** use AWS-managed `SecurityHeadersPolicy` and the selected CloudFront plan’s default WAF protection. No custom response-header policy, CSP, WAF rules, path exclusions or block responses are planned. Existing backend search rate limits remain unchanged; edge blocks retain AWS’s default response. Verify normal page, POST search and automated readiness requests against that default protection.
+**Implemented AWS edge protection (not deployed):** pay-as-you-go CloudFront without WAF, as approved on 2026-11-24. S3 and Lambda use OAC; backend uses the imported private VPC Origin. AWS-managed `SecurityHeadersPolicy` is attached to the static behavior without overrides or CSP. Included Shield Standard remains; there is no WAF application-request filtering, paid Shield, edge rate rule or wake spending cap. Backend search limits remain unchanged. API caching is disabled and configurable 5xx error minimum TTLs are zero distribution-wide without status/body remapping. Backend connections use one attempt, three seconds connect and 30 seconds response timeout; POST body/Content-Type are forwarded without rewriting. Control GET/HEAD routing precedes backend routing, so readiness probes cannot recurse into control.
 
-**Planned AWS traffic visibility:** use default CloudFront metrics and available console reports only, with no additional analytics charges or configuration. No access-log delivery, analytics buckets/databases, wake-event records, tracking scripts or custom reporting pipeline are planned. These reports provide approximate request/traffic information, not visitor sessions or campaign attribution. Backend operational logging remains separate.
+**Implemented AWS traffic visibility configuration (live data pending):** use default CloudFront metrics and available console reports only, with no additional analytics charges or configuration. No access-log delivery, analytics buckets/databases, wake-event records, tracking scripts or custom reporting pipeline are planned. These reports provide approximate request/traffic information, not visitor sessions or campaign attribution. Backend operational logging remains separate.
 
 The [storefront search benchmark proposal](../wardrobe-be/openspec/changes/archive/2026-11-21-benchmark-storefront-search/design.md) was deferred and archived as unimplemented on 2026-11-21. Its proposed endpoint evaluation and MCP comparison remain future work.
 
 **Search transport:** [search-request-body](../openspec/changes/archive/2026-11-23-search-request-body/design.md) uses POST with an `application/json` body containing `message`, `conversationId` and optional `clearMemory` (default false). Query parameters cannot supply or override these fields. GET search returns 405 without admission; invalid or missing JSON returns 400 and unsupported content types return 415 before admission or downstream calls. Deploy the storefront and backend together.
 
-Supported storefront requests keep search fields out of request URLs and URL access logs. This does not redact arbitrary caller-supplied query parameters or explicitly enabled body logging. No request-body logging is introduced. CloudFront POST forwarding and WAF verification remain planned in the AWS edge change.
+Supported storefront requests keep search fields out of request URLs and URL access logs. This does not redact arbitrary caller-supplied query parameters or explicitly enabled body logging. No request-body logging is introduced. CloudFront POST forwarding is implemented locally; live body/header passthrough and uncached-response checks remain pending in the AWS edge change.
 
 **Implemented search timeout budget:** [search-timeout-budget](../openspec/changes/archive/2026-11-23-search-timeout-budget/design.md) retains the frontend’s 30-second timeout, introduces one 25-second backend deadline, caps provider attempts at 5 seconds/remaining time and shares at most three extra attempts across transport and schema retries. Expiry cancels local downstream work and returns a generic 504; startup indexing and health/wake probes keep their separate timeouts. `SearchBudgetFilter` scopes the synchronous request, buffers its response and clears the context on completion. Chat/embedding model wrappers, schema advisors, cancellable HTTP transports and the Qdrant channel share the budget. Native SDK/Spring retry settings must be zero; gRPC service retries and search HTTP automatic connection recovery/redirects are disabled. Schema correction retains one repeat per stage, consuming the same three-extra-attempt allowance. Retry waits honor `Retry-After` only when it fits. The frontend preserves failed input and re-checks readiness without replay. Independent retry defaults are also disabled outside search, but no search deadline is applied there. See [verification](../openspec/changes/archive/2026-11-23-search-timeout-budget/verification.md).
 
@@ -111,15 +111,17 @@ Nano experiment tooling and the alternate Compose profile have been removed.
 
 ## AWS backend host
 
+**Edge pricing decision (2026-11-24):** the owner selected pay-as-you-go without WAF. The rejected Free flat-rate plan excludes VPC Origins. The scheduled-host estimate is about €9/month with illustrative VAT and little margin; allowance availability, actual tax/FX and week-one costs remain unverified. See [edge verification](../openspec/changes/aws-edge-hosting/verification.md).
+
 `infra/` implements the [backend-host design](../openspec/changes/aws-backend-host/design.md)
 using CDK TypeScript in eu-central-1. The current repository revision replaces the
 public custom-origin/header scheme with a CloudFront VPC Origin. **This revision
 has not been deployed**; earlier live results apply to the old public-origin stack.
 See the [runbook](../infra/RUNBOOK.md) and [verification](../openspec/changes/aws-backend-host/verification.md).
-The edge distribution remains planned. The control plane is implemented locally and has not been deployed.
+The edge distribution and control plane are also implemented locally and have not been deployed.
 
 `bash infra/deploy.sh` is the deployment entry point for all currently registered
-CDK stacks (backend host, then control plane with schedules disabled by default). Its ignored JSON config defaults to
+CDK stacks (backend host, then control plane with schedules disabled by default, then edge). Its ignored JSON config defaults to
 the existing account/profile/region, reuses the stack's Qdrant hostname and requires
 a budget email. The helper builds a unique ARM64 image, deploys infrastructure via
 CloudFormation, pushes to ECR and uses SSM to install current host scripts/config,
@@ -127,13 +129,13 @@ restart and check local readiness. For an existing host it closes historical bro
 ingress before startup and verifies the final managed-SG-only rule before activating
 the new image. EC2 is stopped after verification or ordinary deployment failure by
 default; keeping it running is an explicit config option. This deployment automation
-does not implement the separately planned edge distribution or bind control to it. Local mocked checks
+also binds control to the deployed distribution and builds/uploads the SPA with cache headers. `infra/deploy-spa.sh` supports independent frontend releases, publishing dependencies before index and invalidating `/index.html` and `/`. Old hashed assets remain for open tabs/rollback. Local mocked checks
 are separate from pending live acceptance.
 
 ```mermaid
 flowchart LR
-    Viewer[Storefront / visitor] -. planned HTTPS .-> CF[CloudFront distribution]
-    CF -. planned binding .-> Origin[CloudFront VPC Origin / private ENI]
+    Viewer[Storefront / visitor] -->|HTTPS| CF[CloudFront: pay-as-you-go, no WAF; not deployed]
+    CF --> Origin[CloudFront VPC Origin / private ENI]
     Origin --> SG[EC2 SG: 8080 from AWS-managed VPC-origin SG only]
     subgraph Host[EC2 ARM64: micro evaluation, small fallback]
       SG --> API[Non-root Spring Boot container: aws profile]
@@ -146,8 +148,9 @@ flowchart LR
     Host --> Egress[Elastic IP + Internet Gateway: outbound requests and stateful replies]
     Egress --> Services[OpenAI / Qdrant Cloud / ECR / SSM]
     Control[Control Lambda: IAM Function URL, not deployed] -. start / describe .-> Host
-    CF -. planned OAC binding .-> Control
-    Control -. planned HTTPS readiness probe .-> CF
+    CF -->|GET/HEAD control; signed OAC| Control
+    CF -->|default: signed OAC| S3[Private SPA S3: immutable assets, short index/images]
+    Control -->|HTTPS readiness probe| CF
     Schedules[Scheduler: disabled by default] -. weekday start / stop .-> Host
     Schedules -. every 5 minutes .-> Sweeper[Sweeper Lambda]
     Sweeper -. off-hours stop at uptime >=20 minutes .-> Host
@@ -193,8 +196,8 @@ closed before any EC2 call. Repeated readiness calls do not restart or extend a 
 
 The Function URL uses AWS_IAM. Edge binding adds `InvokeFunctionUrl` and
 `InvokeFunction` (via URL only) grants for the one distribution ARN. The edge must
-supply OAC and uncached control/health behaviors; that infrastructure and WAF
-acceptance remain pending. `infra/bind-control.sh` resolves the distribution domain
+supply OAC and uncached control/health behaviors; that infrastructure is implemented
+locally, while live acceptance remains pending. No WAF is configured. `infra/bind-control.sh` resolves the distribution domain
 and redeploys control with ordinary parameters after edge creation, avoiding a
 circular reference. Control exports its URL/ARN for the edge; it receives no origin
 address, secret, SSM permission or visitor analytics storage.

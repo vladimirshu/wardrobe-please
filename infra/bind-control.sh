@@ -16,4 +16,4 @@ fi
 CONTROL_PARAMETERS=(--parameters "DistributionId=$DISTRIBUTION_ID" --parameters "HealthcheckUrl=https://$DISTRIBUTION_DOMAIN/api/v1/health")
 # Review the diff, then apply only control configuration. Schedules retain their prior state.
 npx cdk diff WardrobeControlPlane "${CONTROL_PARAMETERS[@]}"
-npx cdk deploy WardrobeControlPlane --exclusively "${CONTROL_PARAMETERS[@]}"
+npx cdk deploy WardrobeControlPlane --exclusively --require-approval never "${CONTROL_PARAMETERS[@]}"

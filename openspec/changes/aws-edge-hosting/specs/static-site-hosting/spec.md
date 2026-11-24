@@ -23,7 +23,7 @@ The system SHALL serve the storefront and the backend API from one CloudFront do
 Content-hashed static assets SHALL be served with long immutable caching, `index.html` SHALL be cached for at most a short period, and responses under `/api/v1/` SHALL NOT be cached.
 
 #### Scenario: New release
-- **WHEN** a new SPA build is deployed and `index.html` is invalidated
+- **WHEN** a new SPA build is deployed and the entry paths are invalidated
 - **THEN** visitors receive the new `index.html` referencing new hashed assets
 
 #### Scenario: API response
@@ -49,7 +49,7 @@ All behavior SHALL work on the distribution's default domain name; a custom doma
 - **THEN** page, search and wake flows work over HTTPS
 
 ### Requirement: SPA deployment
-The system SHALL provide a documented, repeatable deployment that uploads the SPA build with the correct cache headers and invalidates `index.html`.
+The system SHALL provide a documented, repeatable deployment that uploads the SPA build with the correct cache headers and invalidates `/index.html` and `/`.
 
 #### Scenario: Deploy
 - **WHEN** the operator runs the deploy step with a fresh build
@@ -61,3 +61,10 @@ The backend behavior SHALL allow POST, forward search JSON bodies and Content-Ty
 #### Scenario: Search body through the edge
 - **WHEN** the SPA posts a JSON search through CloudFront
 - **THEN** the backend receives the original body and Content-Type and the response is not cached
+
+### Requirement: Repeatable edge integration
+The full deployment SHALL deploy host, control and edge in dependency order, bind the control health URL and distribution-scoped invocation permissions after edge creation, then publish the SPA. It SHALL retain the configured schedule state and default host shutdown behavior on success or ordinary deployment failure.
+
+#### Scenario: Fresh edge deployment
+- **WHEN** the full deployment completes
+- **THEN** the control Lambda uses the default CloudFront HTTPS health URL, its grants target that distribution, and SPA publication occurs after binding

@@ -1,4 +1,4 @@
-# Backend host runbook
+# AWS hosting runbook
 
 ## Status and scope
 
@@ -10,7 +10,8 @@ the owner's wrap-up request. Existing `initial` / `privacy-final` images predate
 this revision; build a new immutable tag before deployment.
 
 The backend stack owns the VPC Origin and managed-group lookup; the CloudFront
-**distribution** and recurring start/stop remain separate changes. Keep the host
+**distribution** and recurring start/stop are implemented in separate edge/control
+stacks, with live deployment still pending. Keep the host
 stopped outside deliberate migration/acceptance until its operating hours are
 controlled; always-on operation does not fit the €10/month target.
 
@@ -81,11 +82,12 @@ Deployment is not atomic across CloudFormation, ECR and SSM; on failure inspect 
 reported phase/SSM command and rerun after fixing the cause. Automatic image rollback
 and host Docker-cache pruning are not provided.
 
-**Scope:** `WardrobeBackendHost` and `WardrobeControlPlane` are registered, with an
-explicit host-first deployment dependency. The control schedules default disabled;
+**Scope:** `WardrobeBackendHost`, `WardrobeControlPlane` and `WardrobeEdgeHosting`
+are registered, with explicit host → control → edge deployment dependencies. The control schedules default disabled;
 its readiness URL and CloudFront grants remain empty until the edge binding below.
-This command does not deploy the planned storefront/CloudFront distribution or
-external Qdrant Cloud cluster, and does not delete the historical origin secret.
+The command also deploys `WardrobeEdgeHosting`, binds control to its distribution
+and builds/uploads the SPA. It does not provision external Qdrant Cloud or delete
+the historical origin secret. Edge behavior still requires the live checks below.
 Readiness verifies the host locally, not public HTTPS/search behavior. The wrapper
 has local mocked coverage; live migration/acceptance remains pending.
 
@@ -192,7 +194,7 @@ Edge consumes exports `WardrobeBackendVpcOriginId` and `WardrobeBackendOriginPri
 control consumes `WardrobeBackendInstanceId` only. The public IP is for outbound
 internet only; the CloudFront hop uses private connectivity. The VPC Origin must
 not be shared via AWS RAM. Readiness and POST checks through the distribution remain
-pending the edge change. Do not claim a particular distribution identity is checked
+pending edge deployment. Do not claim a particular distribution identity is checked
 by the application: this boundary is enforced by VPC-origin association, trusted IAM
 administration and the service-group-only rule.
 
@@ -253,7 +255,7 @@ AWS_PROFILE=wardrobe AWS_REGION=eu-central-1 npx cdk deploy WardrobeControlPlane
 The edge change must use `WardrobeControlFunctionUrl` as the `/api/v1/control/*`
 origin with Lambda OAC (always sign), `AWS_IAM` and caching disabled. It must route
 `/api/v1/health` to the backend VPC Origin, disable response and 5xx error caching,
-and allow automated probes through the default WAF protection. Control cannot
+without WAF or browser challenges. Control cannot
 confirm UP until that route works. `WardrobeControlFunctionArn` is also exported.
 Then, from the repository root:
 
@@ -308,7 +310,7 @@ There is no heartbeat, session extension, wake cap or spending cap.
 
 Live acceptance remains pending: compare LaunchTime before/after two stop/start
 cycles, confirm STARTING then UP through CloudFront, direct-access rejection,
-uncached readiness and WAF compatibility; observe a weekday and weekend including
+uncached readiness and POST body/header passthrough; observe a weekday and weekend including
 a visitor wake. Keep the host stopped outside deliberate checks. After the first
 operating week, inspect Lambda, EventBridge Scheduler and EC2 compute usage in
 Cost Explorer (exclusive end date), compare with the 24/7 ceiling below, and verify
@@ -336,7 +338,7 @@ These are estimates, not spending caps. Recalculate for the actual month's hours
 Standard SecureStrings, ordinary Session Manager, and budget alerts have no
 assumed standing fee; API/KMS usage, outbound transfer, provider API calls, CDK
 bootstrap storage, the provisioning-time SDK lookup Lambda/API calls, and future
-edge/control-plane resources are additional. Allow
+edge/control-plane operations are additional. Allow
 $0.50/month operational/transfer headroom for this small prototype and verify
 actuals; heavy traffic is not covered by that allowance. OpenAI/Qdrant charges
 are outside the AWS budget. Tax/FX and other account resources can consume the
@@ -345,3 +347,133 @@ remaining €10 headroom. Do not operate continuously or enable small on this es
 After the first full operating week, query Cost Explorer by service and usage type
 for EC2 compute, EBS, IPv4, ECR and transfer (exclusive end date), and record actual
 figures here. This future check is not yet complete and is not automatically scheduled.
+
+
+## Edge hosting (implemented locally, not deployed)
+
+The owner approved pay-as-you-go CloudFront **without WAF** on 2026-11-24.
+Do not enroll this distribution in the Free flat-rate plan (it excludes VPC
+Origins), attach a web ACL, or enable paid Shield/logs/metrics during setup.
+Included Shield Standard, private origins, S3/Lambda OAC and backend search limits
+remain. There is no application-layer edge filtering or wake spending cap.
+The scheduled-host estimate plus small operational/S3 allowances is about
+€9/month including illustrative VAT; see [pricing evaluation](../openspec/changes/aws-edge-hosting/verification.md).
+Account/organization allowance availability and actual costs are unverified.
+
+### Provision and publish
+
+The full `bash infra/deploy.sh` workflow deploys all three stacks, activates the
+host, binds control and publishes Vite. It stops EC2 on success or ordinary failure
+by default; existing schedule state is preserved, fresh schedules default disabled.
+Disable previously enabled schedules before host deployment. Frontend build failure
+leaves the prior release available; first deployment may have an empty SPA bucket
+until publication succeeds. Cross-service deployment is not atomic.
+
+For independent edge provisioning after the host/control exports exist, keep EC2
+running during VPC Origin creation/association, then from `infra/`:
+
+```bash
+AWS_PROFILE=wardrobe AWS_REGION=eu-central-1 npm run build
+AWS_PROFILE=wardrobe AWS_REGION=eu-central-1 npx cdk diff WardrobeEdgeHosting
+AWS_PROFILE=wardrobe AWS_REGION=eu-central-1 npx cdk deploy WardrobeEdgeHosting --exclusively
+```
+
+Read `DistributionId`, `DistributionDomain` and `SpaBucketName` from the stack
+outputs. Bind and publish from the repository root:
+
+```bash
+AWS_PROFILE=wardrobe AWS_REGION=eu-central-1 bash infra/bind-control.sh DISTRIBUTION_ID
+AWS_PROFILE=wardrobe AWS_REGION=eu-central-1 bash infra/deploy-spa.sh
+```
+
+The bind helper prints a diff and deploys only control without an interactive CDK
+approval prompt; it supplies plain distribution/health parameters, not stack
+references. Lambda has both distribution-scoped invocation grants and AWS_IAM auth.
+The edge's explicit Lambda OAC always signs its HTTPS Function URL requests.
+
+The SPA helper resolves destinations from `WardrobeEdgeHosting` outputs, installs
+locked frontend dependencies and builds. It uploads `assets/` with one-year
+immutable caching, other files with 60 seconds, then index last with 60 seconds.
+It invalidates `/index.html` and `/` (two paths per release). Invalidation creation
+is asynchronous: wait for completion in CloudFront before checking propagation.
+It never deletes old hashed assets, allowing open tabs and rollback; deliberately
+clean obsolete builds later. Node 22+, Python 3.9+ and AWS CLI are required.
+No API host configuration or CORS change is needed; the storefront uses relative paths.
+
+### Inspect origins and accept the deployment
+
+```bash
+aws cloudfront get-distribution-config --id DISTRIBUTION_ID --profile wardrobe
+aws cloudfront get-vpc-origin --id VPC_ORIGIN_ID --profile wardrobe
+aws ec2 describe-security-groups --group-ids HOST_SG_ID --profile wardrobe --region eu-central-1
+```
+
+Confirm the distribution has three origins; `/api/v1/control/*` comes before
+`/api/v1/*`. Control has Lambda OAC, HTTPS and caching disabled. Backend references
+`WardrobeBackendVpcOriginId` and private DNS, one connection attempt, three-second
+connection timeout and 30-second response timeout. The host-owned VPC Origin
+specifies HTTP :8080; no shared header, second VPC Origin or public backend
+HttpOrigin exists. Inspect the service-managed SG reference: the host admits TCP
+8080 only from `CloudFront-VPCOrigins-Service-SG`. Do not share via AWS RAM.
+
+Both API behaviors use CachingDisabled and AllViewerExceptHostHeader, preserving
+Content-Type, request body, query strings and cookies while setting the origin
+Host. Control supports GET/HEAD; backend permits POST. Managed SecurityHeadersPolicy
+is on the static behavior. Zero error TTLs cover 500/501/502/503/504 distribution-wide,
+not individual paths, and do not replace statuses/bodies. S3 errors have AWS's
+one-second floor. Unknown static paths return S3 errors; there is no SPA fallback
+that could swallow an API failure. Missing control binding fails closed.
+
+Record these live checks in the edge verification file (not yet performed):
+
+1. With EC2 stopped, repeated HTTPS `/api/v1/health` calls return fast 5xx in about
+   three seconds, without stale cached errors. Frontend probes may abort earlier
+   at their existing 2.5-second timeout; Lambda probes have their separate two seconds.
+2. `/api/v1/control/up` yields STARTING, starts the host, then yields UP only once
+   its CloudFront health probe succeeds. Confirm no recursion or cached 504 after wake.
+3. POST normal search JSON with `Content-Type: application/json` through the
+   distribution. Confirm body semantics, uncached responses and unchanged backend
+   errors/429. Do not enable request-body logging to inspect payloads. Verify the
+   25-second backend deadline can return within the browser's 30-second window under
+   normal conditions; CloudFront timeouts alone are not an end-to-end guarantee.
+4. Anonymous direct Function URL and S3 `/index.html` calls return 403; public EC2
+   :8080 access times out. IAM administrators retain their authorized access.
+5. Load the SPA on its default `*.cloudfront.net` name, inspect security/cache
+   headers, and confirm no tracking scripts, WAF association or analytics resources.
+6. Stop EC2 after deliberate checks; observe scheduled behavior separately before
+   enabling any schedules for routine operation.
+
+### Monitoring, costs and shutdown
+
+Use CloudFront console → Distributions → distribution → **Monitoring** for default
+requests, bytes and aggregate error-rate metrics. Console **Reports & analytics**
+provides available usage, popular objects, referrers and viewer reports. Use only
+reports available without enabling paid features. Data can be delayed; requests
+include assets, bots and readiness/control probes, not unique human visits or
+sessions. Missing product-analytics detail does not justify adding a log pipeline.
+No access-log bucket/delivery, tracking code, custom dashboard or paid metrics are
+configured. Check deployed configuration and traffic after data arrives.
+
+Before operating, confirm the `wardrobe-monthly` budget and notification recipient
+exist, and inspect remaining recurring CloudFront allowance across the account /
+organization. The budget is an alert, not a cap. After the first week, review Cost
+Explorer service/usage lines for CloudFront, S3, Lambda, Scheduler, EC2 and WAF
+(expected absent/zero for this distribution); record actual figures. POST transfer
+toward origins and S3 requests/storage are separate from free delivery allowances.
+No custom domain/Route 53 charge or subscription is assumed in the estimate.
+
+To disable public delivery, console → distribution → **Disable**, or save the
+current `get-distribution-config` response, set only `DistributionConfig.Enabled`
+to false in a config JSON file, then use `update-distribution --id ID --if-match ETAG
+--distribution-config file://CONFIG.json`. Wait for deployment. This manual emergency
+change creates drift; reconcile before the next CDK deploy. Disabling CloudFront
+neither stops EC2 nor disables schedules: disable schedules and stop EC2 separately.
+For immediate wake suppression use the control emergency procedure above.
+
+Rollback a release by rerunning the SPA helper against the known-good frontend
+checkout; it builds that checkout and publishes index last. The bucket is retained
+on stack deletion and has no auto-delete Lambda. Retained objects cost storage
+until deliberately deleted. Never delete the bucket before disabling/removing its
+CloudFront association. Optional custom-domain ACM (us-east-1)/DNS and origin TLS
+remain deferred until explicitly selected; HTTPS origin also requires updating the
+host's VPC Origin protocol/port and SG, not just the distribution.

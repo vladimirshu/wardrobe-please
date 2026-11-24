@@ -91,14 +91,19 @@ class DeployTest(unittest.TestCase):
                     return {'Account': '708564192046'}
                 if args[:2] == ('cloudformation', 'list-stack-resources'):
                     return {'StackResourceSummaries': []}
+                if args[:2] == ('cloudformation', 'describe-stacks'):
+                    return {'Stacks': [{'Outputs': [{'OutputKey': 'DistributionId', 'OutputValue': 'EDEMO123'}]}]}
                 return {}
 
             def run(*args, **kwargs):
                 events.append(args)
                 if args[:3] == ('node', '-p', 'process.versions.node.split(".")[0]'):
                     return '22'
-                if args[:3] == ('npx', 'cdk', 'deploy') and failure:
+                if args[:3] == ('npx', 'cdk', 'deploy') and failure is True:
                     raise RuntimeError('simulated deployment failure')
+                if (failure == 'binding' and args[:2] == ('bash', 'bind-control.sh')) or (
+                        failure == 'spa' and args[:2] == ('bash', 'deploy-spa.sh')):
+                    raise RuntimeError('simulated edge stage failure')
                 if args[:3] == ('aws', 'ecr', 'get-login-password'):
                     return 'test-token'
                 return ''
@@ -129,6 +134,8 @@ class DeployTest(unittest.TestCase):
         push = next(i for i, e in enumerate(events) if 'push' in e)
         self.assertLess(events.index(('verify-ingress',)), push)
         self.assertLess(push, events.index(('activate',)))
+        self.assertLess(events.index(('activate',)), events.index(('bash', 'bind-control.sh', 'EDEMO123')))
+        self.assertLess(events.index(('bash', 'bind-control.sh', 'EDEMO123')), events.index(('bash', 'deploy-spa.sh')))
         self.assertTrue(any(e[:2] == ('ec2', 'stop-instances') for e in events))
 
     def test_new_stack_does_not_start_missing_host(self):
@@ -144,6 +151,17 @@ class DeployTest(unittest.TestCase):
     def test_explicit_keep_running(self):
         events = self.exercise_deploy(stop=False)
         self.assertFalse(any(e[:2] == ('ec2', 'stop-instances') for e in events))
+
+    def test_binding_failure_stops_host_and_skips_spa(self):
+        events = self.exercise_deploy(failure='binding')
+        self.assertIn(('activate',), events)
+        self.assertNotIn(('bash', 'deploy-spa.sh'), events)
+        self.assertTrue(any(e[:2] == ('ec2', 'stop-instances') for e in events))
+
+    def test_spa_failure_still_stops_host(self):
+        events = self.exercise_deploy(failure='spa')
+        self.assertIn(('bash', 'bind-control.sh', 'EDEMO123'), events)
+        self.assertTrue(any(e[:2] == ('ec2', 'stop-instances') for e in events))
 
 
 if __name__ == '__main__':

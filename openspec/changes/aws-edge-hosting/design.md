@@ -1,8 +1,17 @@
 ## Context
 
+### Approved pricing decision — 2026-11-24
+
+The owner approved **pay-as-you-go CloudFront without WAF**, preserving private
+origins, OAC and backend search limits. The previous Free flat-rate assumption
+was rejected because VPC Origins require Business or higher among flat-rate plans.
+See [verification](verification.md) for sources, estimates and the decision history.
+The scheduled-host estimate is about €9/month including illustrative VAT, with
+little margin. No edge application-request filtering or wake spending cap is added.
+
 Traffic estimate from the owner: about 2 visitors per day with about 20 API calls each, plus page loads, so a few thousand requests per month, far below 1 million. The SPA is built by Vite into static files. The backend serves `/api/v1/search` and `/api/v1/health` from an EC2 origin that is stopped most of the time; the control Lambda serves `/api/v1/control/up`.
 
-Everything about pricing, plan inclusions (flat-rate plan, WAF, custom domain, Lambda@Edge), and behavior defaults (error caching, origin timeouts) is an assumption to verify in the console and documentation before building.
+Repository implementation uses CDK TypeScript. Deployment, actual account allowance availability and live acceptance are pending. No flat-rate subscription, WAF association, paid Shield, access-log delivery or additional paid metrics are provisioned.
 
 ## Goals / Non-Goals
 
@@ -37,7 +46,7 @@ distribution-scoped Lambda permissions through a second control-stack deployment
 Do not add a reverse CloudFormation reference from control to edge. The helper
 supplies plain parameters; control remains fail-closed until configured. All control
 schedules default disabled pending acceptance and the operating-cost decision.
-The planned backend behavior must allow `POST /api/v1/search`, forward its JSON body and `Content-Type` unchanged, and disable caching for search. A CloudFront allowed-method preset may include other methods; backend routes remain unchanged. Verify body/header passthrough, uncached responses and compatibility of POST search with the plan’s default WAF protection after deployment. Do not add path-specific WAF rules or custom responses. Do not introduce request-body logging or analytics tracking.
+The backend behavior allows `POST /api/v1/search`, forwards its JSON body and `Content-Type` unchanged, and disables caching for search. A CloudFront allowed-method preset may include other methods; backend routes remain unchanged. Verify body/header passthrough and uncached responses after deployment. Control permits GET/HEAD only; POST search goes to EC2 and does not require Lambda OAC payload hashing. Do not introduce request-body logging or analytics tracking.
 
 - Alternative: separate subdomains per origin (needs a domain and CORS). Rejected.
 
@@ -45,10 +54,10 @@ The planned backend behavior must allow `POST /api/v1/search`, forward its JSON 
 Block all public access; the bucket policy admits only this distribution. The default root object is `index.html`; there is a single page, so no SPA fallback rule is required. Unknown paths return the S3 error mapped to `index.html` only if the frontend later adds client-side routes.
 
 **3. Cache policy.**
-Vite emits content-hashed files under `assets/`; they are uploaded with `Cache-Control: public, max-age=31536000, immutable`. `index.html` and images without hashes are uploaded with a short `max-age` (for example 60 s); the deploy invalidates `/index.html`. Images referenced as `/images/...` (`ecom.assets.base-url` default) are cached for a day.
+Vite emits content-hashed files under `assets/`; they are uploaded with `Cache-Control: public, max-age=31536000, immutable`. `index.html` and images without hashes are uploaded with a short `max-age` (for example 60 s); the deploy invalidates `/index.html`. Unhashed images also use 60 seconds, avoiding a separate image behavior. AWS-managed `UseOriginCacheControlHeaders` honors the S3 headers. Deployment uploads dependencies first, then index last, and invalidates both `/index.html` and `/`. Old hashed assets are retained for open tabs/rollback; cleanup is deliberate.
 
 **4. Fast failure for a stopped origin.**
-The `/api/v1/*` origin uses connection attempts = 1 and connection timeout of 2-3 seconds, response timeout of 30 seconds allowing the implemented [25-second backend search deadline](../archive/2026-11-23-search-timeout-budget/design.md) to return its response within the frontend’s 30-second window under normal network conditions; verify the effective CloudFront setting instead of assuming a provider timeout bounds the whole search. Custom error responses for 502/503/504 under `/api/*` use error caching minimum TTL 0, otherwise a cached 504 (assumed 10 s default) would be served just after the instance becomes ready.
+The `/api/v1/*` origin uses connection attempts = 1 and connection timeout of 2-3 seconds, response timeout of 30 seconds allowing the implemented [25-second backend search deadline](../archive/2026-11-23-search-timeout-budget/design.md) to return its response within the frontend’s 30-second window under normal network conditions; verify the effective CloudFront setting instead of assuming a provider timeout bounds the whole search. CloudFront custom error TTLs are distribution-wide, not path-specific: set minimum TTL 0 for all configurable 5xx codes (500/501/502/503/504), without changing status/body or mapping errors to index.html. CachingDisabled has all cache TTLs zero on both API behaviors. S3 errors alone retain AWS's one-second minimum. The default error TTL is 10 seconds; leaving it enabled risks a stale 504 immediately after wake. A three-second connection timeout and 30-second response timeout allow the 25-second backend response under normal conditions, but are not an end-to-end browser guarantee.
 
 **5. Private origin connectivity.**
 The backend stack exports `WardrobeBackendVpcOriginId` and
@@ -66,8 +75,13 @@ The backend stack can create its VPC Origin before this distribution is created;
 EC2 must be running for origin creation. Migration removes the old prefix-list rule
 before activating the filter-free image. See the host runbook for deployment order.
 
-**6. Default plan WAF protection only.**
-Keep the selected CloudFront plan’s default WAF protection and its required associated web ACL. Do not create custom rules, search-path rate rules, exclusions, browser challenges or custom block responses. Existing backend rate limits still return 429; edge blocks retain the default response supplied by AWS and are not required to return 429. Verify real page loads, POST search and automated `/api/v1/health` probes work with the default protection. If they do not, record the incompatibility for a separate decision rather than silently adding custom WAF configuration or upgrading the plan.
+**6. Pay-as-you-go without WAF (owner approved).**
+Use ordinary pay-as-you-go distribution provisioning, without a pricing-plan
+subscription or web ACL. Included Shield Standard remains; no paid Shield Advanced,
+WAF rules, challenges, exclusions or block responses are introduced. Backend search
+limits retain their existing 429 responses. Private-origin isolation and OAC do not
+filter malicious application requests or cap visitor-triggered EC2 uptime. Adding
+WAF later requires a separate protection and budget decision.
 
 **7. Security headers.**
 Attach the AWS-managed `SecurityHeadersPolicy` (ID `67f7725c-6f97-4210-82d7-5512b31e9d03`) to the default behavior without overrides or a custom policy. It supplies HSTS, nosniff, a referrer policy, `X-Frame-Options: SAMEORIGIN` and X-XSS-Protection. It does not supply CSP or `frame-ancestors`; neither is a requirement of this migration. No CloudFront Function or frontend workaround is introduced to recreate custom headers. See [AWS managed response headers policies](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-response-headers-policies.html#managed-response-headers-policies-security).
@@ -85,32 +99,34 @@ When the owner decides on a domain: ACM public certificate in us-east-1 (DNS val
 
 ## Risks / Trade-offs
 
-- [Free flat-rate plan may exclude a hosting feature used here] → Verify hosting features before building. Analytics uses only default metrics and reports available without an upgrade.
+- [Usage or extra wake hours exceed €10] → Pay-as-you-go has no overage cap. Check account/organization allowance and actual costs; budget alerts notify but do not enforce a ceiling.
 - [HTTP backend hop] → Use the VPC-origin private path, never the public IP. Viewer traffic remains HTTPS; backend TLS can be added separately.
-- [Cached 504 after wake] → Error caching TTL 0 on `/api/*` and caching disabled; test explicitly.
+- [Cached 504 after wake] → Distribution-wide 5xx minimum TTL 0 and API caching disabled; test explicitly.
 - [Search retries exceed the browser timeout] → The shared search-timeout budget is implemented locally; verify CloudFront lets its 25-second backend response through; independent per-call retry settings are insufficient.
 - [Bots and probes inflate request counts and may wake the instance] → Treat reports as approximate traffic information, not human visits; the instance cost ceiling remains the 24/7 case.
-- [Link-preview or monitoring traffic hitting the API origin repeatedly] → Default plan WAF protection and existing backend search limits; no custom edge rate rule.
+- [Unwanted API/wake traffic] → No WAF application filtering. Existing search limits remain; uptime can reach the 24/7 cost ceiling. Default CloudFront reports do not establish human visitor counts.
 
 ## Migration Plan
 
-1. Verify plan inclusions; create the SPA bucket and distribution with the S3 behavior only; upload a placeholder page.
-2. Add the Lambda and EC2 behaviors; check `/api/v1/control/up` and `/api/v1/health` with the instance stopped (fast 504, not cached) and running.
-3. Deploy the real SPA build, run through the full wake flow from a browser.
-4. Rollback: point the default behavior back to a placeholder object or disable the distribution; the SPA bucket holds only rebuildable content.
+1. Deploy the host migration and control stack with schedules disabled. Keep EC2 running while provisioning its VPC Origin and the edge association.
+2. Deploy `WardrobeEdgeHosting` with all three behaviors. The edge imports host exports and the control URL; it creates no reverse control reference or duplicate VPC Origin.
+3. Run `infra/bind-control.sh DISTRIBUTION_ID` to configure readiness and distribution-scoped Lambda permissions. The control URL remains fail-closed before binding. The Lambda OAC is explicitly attached to an HTTPS HttpOrigin for the Function URL; invocation permissions remain in the control stack, avoiding duplicate grants from the CDK FunctionUrlOrigin convenience helper.
+4. Run `infra/deploy-spa.sh` to build Vite, upload with cache headers and invalidate entry paths. The full `infra/deploy.sh` wrapper performs these stages after host activation and stops EC2 by default even on ordinary failure. Schedules retain existing parameter values; fresh deployments default disabled.
+5. Perform live stopped/running/wake/search/isolation checks and record evidence. Nothing in local synthesis establishes live acceptance. Optional domain/TLS work remains deferred.
+6. Rollback: publish a known-good build (retained hashed assets remain), or disable the distribution. S3 is retained on stack deletion without an automatic cleanup resource; manually remove it only when no longer needed.
 
 ## Open Questions
 
-- Does the free flat-rate plan allow the origin timeouts, custom error caching, AWS-managed SecurityHeadersPolicy, default WAF protection and (later) a custom domain used here?
+- How much recurring CloudFront allowance remains in the account/organization? Confirm before deployment and review actual week-one costs.
 - Custom domain: decided later by the owner.
-- Shared `infra/` now uses owner-approved CDK TypeScript for the host; edge implementation remains planned.
+- `infra/` implements the host, control plane and edge in CDK TypeScript. None of the edge live checks have run.
 - Host region is eu-central-1; the certificate for a future domain must be in us-east-1 regardless.
 
 ## Backend integration status — 2026-11-23
 
 Repository code now defines the EC2 VPC Origin and exports its ID/private DNS;
 this revision has not been deployed. The earlier public-origin deployment is
-historical evidence only. Edge routing, external isolation tests and end-to-end
-readiness/search remain planned here. The owner's total target is €10/month:
+historical evidence only. Edge routing is now implemented locally; external isolation and end-to-end
+readiness/search tests remain pending deployment. The owner's total target is €10/month:
 retain the existing outbound EIP, introduce no NAT Gateway, and account for edge
 usage and provisioning-time custom-resource API/Lambda calls before deployment.

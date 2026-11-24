@@ -19,7 +19,7 @@
 
 ## 4. Verification
 
-- [ ] 4.1 Calls from the CloudFront domain: stopped → STARTING, later UP via an uncached CloudFront health probe, repeated calls safe, direct Function URL and direct EC2 access rejected; verify Lambda has no origin secret/SSM access and automated probes pass WAF without browser challenges
+- [ ] 4.1 Calls from the CloudFront domain: stopped → STARTING, later UP via an uncached CloudFront health probe, repeated calls safe, direct Function URL and direct EC2 access rejected; verify Lambda has no origin secret/SSM access and automated probes work without browser challenges (edge uses pay-as-you-go without WAF)
 - [ ] 4.2 Observe one full weekday (08:00 start, 22:00 stop), a weekend with no scheduled start/stop and a visitor-triggered weekend wake stopped by the off-hours sweeper after 20–25 minutes
 
 ## 5. Runbook and cost

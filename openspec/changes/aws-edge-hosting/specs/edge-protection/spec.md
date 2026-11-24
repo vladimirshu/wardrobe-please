@@ -26,23 +26,23 @@ The control Lambda Function URL SHALL be invocable only through the distribution
 - **WHEN** the Function URL is called without CloudFront's signature
 - **THEN** the call is rejected
 
-### Requirement: Default plan WAF protection
-The distribution SHALL retain the selected plan's default WAF protection and any required associated web ACL. The migration SHALL NOT introduce custom WAF rules, search-path rate rules, exclusions, browser challenges or custom block responses. Existing backend search limits SHALL remain unchanged. Edge blocks SHALL retain AWS's default response and SHALL NOT be required to return HTTP 429.
+### Requirement: Pay-as-you-go without WAF
+The distribution SHALL use pay-as-you-go pricing without a flat-rate plan or associated WAF web ACL. The migration SHALL NOT provision WAF rules, challenges, custom block responses or paid Shield Advanced. Included Shield Standard and existing backend search rate limits SHALL remain. Documentation SHALL identify the absence of application-request filtering and a wake spending cap.
 
 #### Scenario: Deploying edge protection
 - **WHEN** the distribution is provisioned
-- **THEN** it uses the plan's default WAF protection without project-specific rules or custom responses
+- **THEN** private-origin/OAC restrictions apply without a WAF web ACL or pricing-plan subscription
 
-#### Scenario: Compatibility with application traffic
-- **WHEN** page loads, POST search and automated readiness probes are verified against the deployed distribution
-- **THEN** they work with default protection, or the incompatibility is recorded for a separate decision without silently adding custom WAF configuration or a paid upgrade
+#### Scenario: Backend rate limit
+- **WHEN** the backend search rate limit is exceeded
+- **THEN** its existing HTTP 429 response passes through unchanged, without introducing an edge rate rule
 
 ### Requirement: Automated readiness probes
-Any enabled WAF rules SHALL permit control-Lambda requests to `/api/v1/health` without a browser challenge. CloudFront SHALL route those requests through the VPC Origin without granting Lambda direct network access to EC2 or introducing an origin secret.
+CloudFront SHALL route control-Lambda requests to `/api/v1/health` through the VPC Origin without a browser challenge, granting Lambda direct EC2 network access or introducing an origin secret.
 
 #### Scenario: Control Lambda health check
 - **WHEN** the control Lambda requests the CloudFront HTTPS health URL
-- **THEN** WAF permits the automated probe and the request reaches the backend through the existing CloudFront-only network restriction
+- **THEN** the request reaches the backend through the existing CloudFront-only network restriction without WAF inspection
 
 ### Requirement: Security headers
 The default behavior SHALL use AWS-managed `SecurityHeadersPolicy` (ID `67f7725c-6f97-4210-82d7-5512b31e9d03`) without custom policies or overrides. Its managed header set SHALL be sufficient for this migration; a custom CSP, `frame-ancestors` directive or edge-function workaround SHALL NOT be required.
