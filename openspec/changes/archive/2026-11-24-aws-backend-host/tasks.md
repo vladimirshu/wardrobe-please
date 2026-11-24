@@ -1,3 +1,12 @@
+## Archive handoff — 2026-11-24
+
+Archived and synced at the owner's explicit request after implementation.
+Vladimir will perform the outstanding live verification himself. Unchecked tasks
+remain unchecked; archiving does not establish deployment success, acceptance or
+observed costs. Optional items remain deferred. See the task and verification
+records for the remaining checks. No deployment or AWS verification was run as
+part of archiving.
+
 ## 1. Backend preparation
 
 - [x] 1.1 Add `application-aws.yml` with root/application INFO logging; preserve the existing payload-sensitive Spring AI ERROR overrides and health-only Actuator exposure. Activate it through host `SPRING_PROFILES_ACTIVE=aws` (ordinary Spring configuration, no AWS login/logging service). Verify no prompts or provider payloads are logged on successful searches, empty/malformed model responses or provider-error paths

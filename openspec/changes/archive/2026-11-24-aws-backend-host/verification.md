@@ -1,3 +1,12 @@
+## Archive handoff — 2026-11-24
+
+Archived and synced at the owner's explicit request after implementation.
+Vladimir will perform the outstanding live verification himself. Unchecked tasks
+remain unchecked; archiving does not establish deployment success, acceptance or
+observed costs. Optional items remain deferred. See the task and verification
+records for the remaining checks. No deployment or AWS verification was run as
+part of archiving.
+
 # Current revision — CloudFront VPC Origin (2026-11-23)
 
 This revision is local repository work only. The deployed stack/old ECR images
@@ -117,7 +126,7 @@ CloudFront end-to-end readiness/search remain pending `aws-edge-hosting`.
 
 ## Cost
 
-Regional rates and deterministic calculations are in [`infra/RUNBOOK.md`](../../../infra/RUNBOOK.md).
+Regional rates and deterministic calculations are in [`infra/RUNBOOK.md`](../../../../infra/RUNBOOK.md).
 Estimated backend baseline before tax: $7.6684 at 308 runtime hours/month,
 $11.7196 always-on, $4.7116 stopped. Add transfer/operations, tax and currency effects;
 OpenAI/Qdrant and future edge resources are separate. Do not leave the instance

@@ -1,3 +1,12 @@
+## Archive handoff — 2026-11-24
+
+Archived and synced at the owner's explicit request after implementation.
+Vladimir will perform the outstanding live verification himself. Unchecked tasks
+remain unchecked; archiving does not establish deployment success, acceptance or
+observed costs. Optional items remain deferred. See the task and verification
+records for the remaining checks. No deployment or AWS verification was run as
+part of archiving.
+
 ## 1. Control Lambda
 
 - [x] 1.1 Implement the control Lambda (Node.js, arm64, TypeScript): describe instance, start when stopped, probe the configured HTTPS CloudFront `/api/v1/health` URL with a 2 s total timeout and redirects disabled, return `{"state":...}` always with HTTP 200, no-cache headers

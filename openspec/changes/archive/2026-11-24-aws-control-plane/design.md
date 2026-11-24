@@ -71,7 +71,7 @@ The host stack exports `WardrobeBackendInstanceId`; consume only that value here
 `WardrobeBackendVpcOriginId` and `WardrobeBackendOriginPrivateDns` are for the edge
 change. The control plane still probes through CloudFront and needs no secret or
 origin address. The host is kept stopped after acceptance until scheduling and the
-updated cost policy are implemented. See [host verification](../aws-backend-host/verification.md).
+updated cost policy are implemented. See [host verification](../2026-11-24-aws-backend-host/verification.md).
 
 ## Implementation status — 2026-11-24
 

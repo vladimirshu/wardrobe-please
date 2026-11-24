@@ -20,7 +20,7 @@ The system SHALL serve the storefront and the backend API from one CloudFront do
 - **THEN** access is denied
 
 ### Requirement: Cache behavior
-Content-hashed static assets SHALL be served with long immutable caching, `index.html` SHALL be cached for at most a short period, and responses under `/api/v1/` SHALL NOT be cached.
+Content-hashed static assets SHALL be served with long immutable caching, `index.html` SHALL be cached for at most a short period, and responses under `/api/v1/` SHALL NOT be cached. The S3 behavior SHALL use managed CachingOptimized without an origin request policy and SHALL NOT forward the viewer Host to S3. Its one-second minimum TTL SHALL remain below the configured 60-second/one-year object lifetimes.
 
 #### Scenario: New release
 - **WHEN** a new SPA build is deployed and the entry paths are invalidated
@@ -29,6 +29,11 @@ Content-hashed static assets SHALL be served with long immutable caching, `index
 #### Scenario: API response
 - **WHEN** the same `/api/v1/health` request is made twice and the origin state changes between them
 - **THEN** the second response reflects the new state
+
+
+#### Scenario: Static bucket routing
+- **WHEN** CloudFront fetches `index.html` from S3 for a viewer using the distribution domain
+- **THEN** it uses the S3 origin Host, rather than forwarding the viewer Host
 
 ### Requirement: Fast, uncached failure of a stopped origin
 Requests to the backend origin SHALL use a single connection attempt with a timeout of at most 3 seconds, and 5xx responses under `/api/v1/` SHALL NOT be cached, so a stopped instance yields a quick error that disappears as soon as the instance is ready.

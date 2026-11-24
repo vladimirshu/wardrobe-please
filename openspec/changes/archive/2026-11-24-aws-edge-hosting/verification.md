@@ -1,3 +1,12 @@
+## Archive handoff — 2026-11-24
+
+Archived and synced at the owner's explicit request after implementation.
+Vladimir will perform the outstanding live verification himself. Unchecked tasks
+remain unchecked; archiving does not establish deployment success, acceptance or
+observed costs. Optional items remain deferred. See the task and verification
+records for the remaining checks. No deployment or AWS verification was run as
+part of archiving.
+
 # Edge hosting verification
 
 **Current decision:** on 2026-11-24 the owner approved pay-as-you-go without WAF
@@ -56,7 +65,7 @@ this estimate, and reconfirm before provisioning.
 
 ### Monthly estimate, not an account bill
 
-Reuse the [runbook's 2026-11-23 host estimate](../../../infra/RUNBOOK.md):
+Reuse the [runbook's 2026-11-23 host estimate](../../../../infra/RUNBOOK.md):
 308 EC2 hours, 8 GB gp3, 730 EIP hours and 3 GB ECR = $7.6684 before tax.
 Add $0.50 operational headroom and a provisional $0.10 small-SPA S3 allowance
 (not a measured charge or guaranteed upper bound). Assume CloudFront delivery
@@ -136,3 +145,27 @@ Offline checks:
 No AWS deployment, account allowance inspection, budget verification, real-provider
 search or live origin isolation was performed. Remaining mandatory live acceptance
 and week-one billing tasks stay unchecked. Optional domain/origin TLS remain deferred.
+
+
+## 2026-11-24 — S3 static Host routing correction (not deployed)
+
+Browser inspection confirmed the default domain and root object were correct,
+`index.html` existed in the private bucket, and both `/` and `/index.html` returned
+XML NotFound. The deployed `UseOriginCacheControlHeaders` policy included the
+viewer Host. [AWS troubleshooting guidance](https://repost.aws/knowledge-center/cloudfront-troubleshoot-404-errors)
+identifies Host forwarding to S3 as a cause of 404 and recommends removing it or
+using CachingOptimized. This is the diagnosed configuration cause; successful live
+recovery remains unverified until the correction is deployed.
+
+Repository default behavior now uses managed `CachingOptimized` without an origin
+request policy. Its one-second minimum TTL is below the SPA's explicit 60-second
+and one-year lifetimes. Private bucket/OAC and API behaviors are unchanged.
+Regression assertions check the replacement policy ID and absence of a static
+origin request policy. Architecture, design, delta spec and runbook explain why
+viewer Host must not be forwarded to S3. This supersedes the earlier static-policy
+choice recorded above. No deployment scripts, AWS mutation or invalidation were
+run for this correction, as requested.
+
+Correction checks passed: infrastructure TypeScript compilation, all 15 Node tests
+(including the updated synthesized-template assertions), IntelliJ build, strict
+OpenSpec validation and `git diff --check`. Live recovery is still pending.

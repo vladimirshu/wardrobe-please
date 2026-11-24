@@ -45,7 +45,7 @@ A private ECR repository holds the arm64 image (lifecycle policy: keep the last 
 **3. Multi-stage `Dockerfile` on a maintained base.**
 Build stage: a JDK 25 LTS image (Eclipse Temurin); runtime stage: a JRE-only Temurin 25 image, non-root user, the image entrypoint loading shared `runtime-jvm.args` (`-Xms64m -Xmx256m`), with no collector/metaspace overrides from the host unit. The build runs in CI/on the developer machine with `docker buildx --platform linux/arm64`, not on the instance.
 
-The [Java 25 upgrade](../upgrade-backend-java-25/verification.md) aligns the repository toolchain and container runtime. Its local/container checks do not validate these planned host JVM flags. Recheck Linux host/native memory and swap on the selected instance; the earlier 192 MiB heap remains historical measurement evidence. Retain the prior Java 17 artifact/image as a complete rollback unit.
+The [Java 25 upgrade](../../upgrade-backend-java-25/verification.md) aligns the repository toolchain and container runtime. Its local/container checks do not validate these planned host JVM flags. Recheck Linux host/native memory and swap on the selected instance; the earlier 192 MiB heap remains historical measurement evidence. Retain the prior Java 17 artifact/image as a complete rollback unit.
 
 **4. Secrets in SSM Parameter Store SecureString.**
 SecureString parameters under `/ecom/prod/`: `openai-api-key`, `qdrant-api-key`. Supply the non-secret Qdrant hostname through deployment configuration; it may appear in existing connection diagnostics. The instance role may call `ssm:GetParameters` on those two exact parameter ARNs only. A small start script (`ExecStartPre`) combines the fetched secrets with deployment configuration in the container environment (`OPENAI_API_KEY`, `QDRANT_HOST`, `QDRANT_API_KEY`, `QDRANT_USE_TLS=true`). Standard-tier parameters are assumed free; verify.
@@ -137,7 +137,7 @@ The existing `GET /api/v1/health` endpoint reports readiness after catalog start
   edge verification remain separate. Local mocked coverage does not establish live
   acceptance. See the runbook for configuration and recovery limitations.
 
-- Host code and operations: [`infra/`](../../../infra/RUNBOOK.md); acceptance evidence
+- Host code and operations: [`infra/`](../../../../infra/RUNBOOK.md); acceptance evidence
   is tracked in [`verification.md`](verification.md), separately from code readiness.
 - Standard CPU credits avoid T4g unlimited surplus-credit charges; throttling/latency
   are part of host acceptance. IMDS hop limit 1 keeps AWS credential access on the host;

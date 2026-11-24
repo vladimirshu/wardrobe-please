@@ -1,0 +1,74 @@
+# service-wake-control Specification
+
+## Purpose
+Define the private control endpoint that starts the backend and confirms readiness through CloudFront.
+
+## Verification status
+Synced from the implemented change on 2026-11-24 at the owner's request. Live
+acceptance and outstanding operational/cost checks remain unverified and will be
+performed by Vladimir. Archiving is not verification. See [remaining tasks](../../changes/archive/2026-11-24-aws-control-plane/tasks.md)
+and [verification record](../../changes/archive/2026-11-24-aws-control-plane/verification.md).
+
+## Requirements
+### Requirement: Wake endpoint
+The system SHALL expose `GET /api/v1/control/up`, which starts the backend instance when it is stopped and answers HTTP 200 with a JSON body `{"state":"UP"}` or `{"state":"STARTING"}`.
+
+#### Scenario: Instance stopped
+- **WHEN** the endpoint is called while the instance is stopped
+- **THEN** the instance is started and the response is `{"state":"STARTING"}`
+
+#### Scenario: Instance running and ready
+- **WHEN** the endpoint is called while the instance is running and `GET /api/v1/health` through the project's CloudFront HTTPS domain answers 200 within 2 seconds
+- **THEN** the response is `{"state":"UP"}`
+
+#### Scenario: Instance running but not ready
+- **WHEN** the instance is running and the health probe answers non-200, times out or is refused
+- **THEN** the response is `{"state":"STARTING"}`
+
+### Requirement: Readiness confirmation for frontend routing
+A valid UP response SHALL mean the running origin answered its readiness check through the project's CloudFront HTTPS domain within a 2-second total timeout. The probe URL SHALL be deployment-controlled, SHALL route to EC2 rather than the control Lambda, and SHALL NOT follow redirects. Health responses and 5xx errors SHALL NOT be cached. Lambda SHALL NOT connect directly to EC2 or receive an origin-verification secret; CloudFront SHALL use the private VPC Origin without a secret header. The frontend SHALL be able to use this response to open the shop without an additional backend health request. Calls outside opening hours SHALL remain valid even when the instance is already running and ready; they SHALL NOT restart it or extend its off-hours session.
+
+#### Scenario: Off-hours visitor finds an already ready instance
+- **WHEN** a visitor calls the endpoint outside opening hours and the running origin passes its readiness check
+- **THEN** the endpoint returns UP without restarting the instance or changing the session start time
+
+#### Scenario: Probe follows the protected backend route
+- **WHEN** Lambda checks readiness for a running instance
+- **THEN** it requests the configured CloudFront HTTPS health URL without an origin secret, CloudFront forwards the request over its private VPC Origin without a secret header, and the backend security group admits the AWS-managed VPC-origin service security group
+
+#### Scenario: Edge failure or invalid probe configuration
+- **WHEN** the health URL is missing or invalid, or CloudFront returns a redirect, non-200 response or exceeds the probe timeout
+- **THEN** control returns STARTING and does not fall back to direct EC2 access
+
+### Requirement: Idempotent and repeatable
+Repeated calls SHALL be safe: calling the endpoint while the instance is pending, running or already being started MUST NOT cause an error, a second start or extend the running session. No analytics event SHALL be persisted.
+
+#### Scenario: Concurrent visitors
+- **WHEN** several visitors call the endpoint at the same time while the instance is stopped
+- **THEN** the instance is started once and every response is `{"state":"STARTING"}`
+
+#### Scenario: Instance stopping
+- **WHEN** the endpoint is called while the instance is stopping
+- **THEN** the response is `{"state":"STARTING"}` and a later call, once the instance is stopped, starts it
+
+### Requirement: Always HTTP 200 with a state
+The endpoint SHALL answer HTTP 200 with a valid state for every call, including when an AWS API call fails; failures SHALL be logged and reported as `STARTING`.
+
+#### Scenario: Start request fails
+- **WHEN** the start request fails because of an AWS error
+- **THEN** the response is HTTP 200 with `{"state":"STARTING"}` and the error is logged
+
+### Requirement: Not cached
+Responses of the endpoint SHALL NOT be cached by CloudFront or by browsers.
+
+#### Scenario: Two calls in a row
+- **WHEN** the endpoint is called twice and the instance state changes between the calls
+- **THEN** the second response reflects the new state
+
+### Requirement: Restricted invocation
+The Lambda Function URL SHALL be invocable only through the project's CloudFront distribution; direct calls to the Function URL SHALL be rejected, and the Lambda SHALL have only the EC2 describe/start permissions it needs, with no SSM read permission. Instance-start permission SHALL be scoped to the configured instance. No analytics-table write permission SHALL be granted.
+
+#### Scenario: Direct call
+- **WHEN** a client calls the Function URL directly without CloudFront
+- **THEN** the call is rejected with an authorization error and the instance is not started
+

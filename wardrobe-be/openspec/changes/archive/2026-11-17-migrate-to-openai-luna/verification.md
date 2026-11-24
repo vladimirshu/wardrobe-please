@@ -47,4 +47,4 @@ Record whether the account can use `gpt-6-luna`, the HTTP status, whether the va
 
 ## Deployment credentials
 
-The [AWS backend hosting plan](../../../../../openspec/changes/aws-backend-host/design.md) supplies `OPENAI_API_KEY` from `/ecom/prod/openai-api-key`. Verify the deployed key's Chat Completions and Embeddings access before switching traffic. For rollback, retain the previous backend image and its DeepSeek secret reference.
+The [AWS backend hosting plan](../../../../../openspec/changes/archive/2026-11-24-aws-backend-host/design.md) supplies `OPENAI_API_KEY` from `/ecom/prod/openai-api-key`. Verify the deployed key's Chat Completions and Embeddings access before switching traffic. For rollback, retain the previous backend image and its DeepSeek secret reference.

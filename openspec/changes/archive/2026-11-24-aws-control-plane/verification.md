@@ -1,3 +1,12 @@
+## Archive handoff — 2026-11-24
+
+Archived and synced at the owner's explicit request after implementation.
+Vladimir will perform the outstanding live verification himself. Unchecked tasks
+remain unchecked; archiving does not establish deployment success, acceptance or
+observed costs. Optional items remain deferred. See the task and verification
+records for the remaining checks. No deployment or AWS verification was run as
+part of archiving.
+
 # Control-plane verification — 2026-11-24
 
 ## Deployment configuration update — 2026-11-24
