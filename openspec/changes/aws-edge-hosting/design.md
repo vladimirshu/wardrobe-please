@@ -45,7 +45,7 @@ needed) from `WardrobeControlPlane`. Create the edge with Lambda OAC, then run
 distribution-scoped Lambda permissions through a second control-stack deployment.
 Do not add a reverse CloudFormation reference from control to edge. The helper
 supplies plain parameters; control remains fail-closed until configured. All control
-schedules default disabled pending acceptance and the operating-cost decision.
+schedules follow deployment config `schedules_enabled`, default true.
 The backend behavior allows `POST /api/v1/search`, forwards its JSON body and `Content-Type` unchanged, and disables caching for search. A CloudFront allowed-method preset may include other methods; backend routes remain unchanged. Verify body/header passthrough and uncached responses after deployment. Control permits GET/HEAD only; POST search goes to EC2 and does not require Lambda OAC payload hashing. Do not introduce request-body logging or analytics tracking.
 
 - Alternative: separate subdomains per origin (needs a domain and CORS). Rejected.
@@ -108,10 +108,10 @@ When the owner decides on a domain: ACM public certificate in us-east-1 (DNS val
 
 ## Migration Plan
 
-1. Deploy the host migration and control stack with schedules disabled. Keep EC2 running while provisioning its VPC Origin and the edge association.
+1. Deploy the host migration and control stack with schedules set by `schedules_enabled` (default true). Keep EC2 running while provisioning its VPC Origin and the edge association.
 2. Deploy `WardrobeEdgeHosting` with all three behaviors. The edge imports host exports and the control URL; it creates no reverse control reference or duplicate VPC Origin.
 3. Run `infra/bind-control.sh DISTRIBUTION_ID` to configure readiness and distribution-scoped Lambda permissions. The control URL remains fail-closed before binding. The Lambda OAC is explicitly attached to an HTTPS HttpOrigin for the Function URL; invocation permissions remain in the control stack, avoiding duplicate grants from the CDK FunctionUrlOrigin convenience helper.
-4. Run `infra/deploy-spa.sh` to build Vite, upload with cache headers and invalidate entry paths. The full `infra/deploy.sh` wrapper performs these stages after host activation and stops EC2 by default even on ordinary failure. Schedules retain existing parameter values; fresh deployments default disabled.
+4. Run `infra/deploy-spa.sh` to build Vite, upload with cache headers and invalidate entry paths. The full `infra/deploy.sh` wrapper performs these stages after host activation and stops EC2 by default even on ordinary failure. The wrapper explicitly applies `schedules_enabled` on every deployment (default true), independent of `stop_after_deploy`.
 5. Perform live stopped/running/wake/search/isolation checks and record evidence. Nothing in local synthesis establishes live acceptance. Optional domain/TLS work remains deferred.
 6. Rollback: publish a known-good build (retained hashed assets remain), or disable the distribution. S3 is retained on stack deletion without an automatic cleanup resource; manually remove it only when no longer needed.
 

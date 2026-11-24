@@ -12,7 +12,7 @@ export class ControlPlaneStack extends Stack {
     const instanceId = Fn.importValue('WardrobeBackendInstanceId');
     const instanceArn = this.formatArn({ service: 'ec2', resource: 'instance', resourceName: instanceId });
     const hours = readOpeningHours();
-    const enabled = new CfnParameter(this, 'SchedulesEnabled', { type: 'String', default: 'false', allowedValues: ['true', 'false'] });
+    const enabled = new CfnParameter(this, 'SchedulesEnabled', { type: 'String', default: 'true', allowedValues: ['true', 'false'] });
     const active = new CfnCondition(this, 'SchedulesActive', { expression: Fn.conditionEquals(enabled.valueAsString, 'true') });
     // Plain parameters support a second deployment after edge creation without a reverse stack reference.
     const distributionId = new CfnParameter(this, 'DistributionId', { default: '', allowedPattern: '(|E[A-Z0-9]+)' });

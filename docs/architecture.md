@@ -93,7 +93,7 @@ Supported storefront requests keep search fields out of request URLs and URL acc
 are summarized in OpenSpec. The nano experiments are retired; current runtime
 limits are documented below. AWS total-host and real-provider validation remain pending.
 
-**Implemented AWS schedule (not deployed, disabled by default):** both recurring start (08:00) and stop (22:00) run Monday to Friday in Europe/Berlin. No recurring start or stop runs at weekends; visitor-triggered weekend wake and off-hours shutdown after 20–25 minutes remain available.
+**Implemented AWS schedule (not deployed, enabled by default):** both recurring start (08:00) and stop (22:00) run Monday to Friday in Europe/Berlin. No recurring start or stop runs at weekends; visitor-triggered weekend wake and off-hours shutdown after 20–25 minutes remain available.
 
 **Implemented deployment logging configuration:** `application-aws.yml` is an ordinary Spring Boot profile activated with `SPRING_PROFILES_ACTIVE=aws`, not an AWS login profile or remote logging service. It retains payload-sensitive logger restrictions. Mock-provider tests cover successful query analysis, empty/schema-invalid/malformed responses and provider errors; live-host checks remain separate. Unknown refinement SKUs are logged without their untrusted values. Provider exceptions from refinement are converted to a generic assistant failure without retaining raw exception causes, preventing servlet error logging from exposing payloads. The exception handler also sanitizes OpenAI/HTTP provider failures from embedding and retrieval.
 
@@ -121,7 +121,7 @@ See the [runbook](../infra/RUNBOOK.md) and [verification](../openspec/changes/aw
 The edge distribution and control plane are also implemented locally and have not been deployed.
 
 `bash infra/deploy.sh` is the deployment entry point for all currently registered
-CDK stacks (backend host, then control plane with schedules disabled by default, then edge). Its ignored JSON config defaults to
+CDK stacks (backend host, then control plane with schedules from deployment config, then edge). Its ignored JSON config defaults to
 the existing account/profile/region, reuses the stack's Qdrant hostname and requires
 a budget email. The helper builds a unique ARM64 image, deploys infrastructure via
 CloudFormation, pushes to ECR and uses SSM to install current host scripts/config,
@@ -151,7 +151,7 @@ flowchart LR
     CF -->|GET/HEAD control; signed OAC| Control
     CF -->|default: signed OAC| S3[Private SPA S3: immutable assets, short index/images]
     Control -->|HTTPS readiness probe| CF
-    Schedules[Scheduler: disabled by default] -. weekday start / stop .-> Host
+    Schedules[Scheduler: schedules_enabled, default true] -. weekday start / stop .-> Host
     Schedules -. every 5 minutes .-> Sweeper[Sweeper Lambda]
     Sweeper -. off-hours stop at uptime >=20 minutes .-> Host
 ```
@@ -207,6 +207,8 @@ universal EC2 targets and the five-minute sweeper. The sweeper stops only runnin
 off-hours hosts with LaunchTime at least 20 minutes old. DescribeInstances requires
 wildcard resource scope; start/stop permissions are limited to the host ARN.
 Scheduler roles trust only this account's schedule group; functions have separate
-roles and one-week log retention. All schedules default disabled. The implementation
+roles and one-week log retention. All three schedules follow deployment config `schedules_enabled`, default true.
+The wrapper passes it explicitly on each deploy; this is independent of immediate
+host shutdown controlled by `stop_after_deploy`. The implementation
 has no wake cap; the €10 operating policy and live LaunchTime, weekday/weekend,
 edge-access and week-one cost checks remain pending. See the [runbook](../infra/RUNBOOK.md).

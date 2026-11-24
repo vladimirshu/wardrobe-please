@@ -71,7 +71,7 @@ class DeployTest(unittest.TestCase):
         self.assertNotIn('--with-decryption', json.dumps(sent))
         self.assertNotIn('get-parameters', json.dumps(sent))
 
-    def exercise_deploy(self, fresh=False, failure=False, stop=True):
+    def exercise_deploy(self, fresh=False, failure=False, stop=True, schedules=None):
         events = []
         current = {'Parameters': [{'ParameterKey': 'QdrantHost', 'ParameterValue': 'q.example.com'}],
                    'Outputs': [{'OutputKey': 'InstanceId', 'OutputValue': 'i-host'},
@@ -80,8 +80,11 @@ class DeployTest(unittest.TestCase):
             root = Path(directory)
             config = {'budget_email': 'owner@example.com', 'qdrant_host': 'q.example.com' if fresh else '',
                       'stop_after_deploy': stop}
+            if schedules is not None:
+                config['schedules_enabled'] = schedules
             (root / 'deploy.config.example.json').write_text(json.dumps({
-                'profile': 'wardrobe', 'account_id': '708564192046', 'region': 'eu-central-1', 'budget_usd': 8}))
+                'profile': 'wardrobe', 'account_id': '708564192046', 'region': 'eu-central-1', 'budget_usd': 8,
+                'schedules_enabled': True}))
             (root / 'config.json').write_text(json.dumps(config))
             (root / '.deploy-image-tag').write_text('release-test')
 
@@ -151,6 +154,17 @@ class DeployTest(unittest.TestCase):
     def test_explicit_keep_running(self):
         events = self.exercise_deploy(stop=False)
         self.assertFalse(any(e[:2] == ('ec2', 'stop-instances') for e in events))
+
+    def test_schedule_setting_is_explicit_on_every_deploy(self):
+        for setting, expected in [(None, 'true'), (True, 'true'), (False, 'false')]:
+            with self.subTest(setting=setting):
+                events = self.exercise_deploy(schedules=setting)
+                command = next(e for e in events if e[:3] == ('npx', 'cdk', 'deploy'))
+                self.assertIn(f'WardrobeControlPlane:SchedulesEnabled={expected}', command)
+
+    def test_schedule_setting_rejects_string_booleans(self):
+        with self.assertRaisesRegex(RuntimeError, 'schedules_enabled'):
+            self.exercise_deploy(schedules='false')
 
     def test_binding_failure_stops_host_and_skips_spa(self):
         events = self.exercise_deploy(failure='binding')

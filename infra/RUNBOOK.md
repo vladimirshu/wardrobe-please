@@ -60,6 +60,10 @@ $8 USD/month, and stop EC2 after verification. Empty `qdrant_host` reuses the
 existing stack's `QdrantHost` parameter; for a new stack, set the DNS hostname
 without scheme/path. `stop_after_deploy: false` explicitly leaves the service
 running; without scheduling, continuous operation exceeds the current budget estimate.
+`schedules_enabled` defaults to true and controls weekday start/stop plus the
+five-minute sweeper. It is independent of `stop_after_deploy`: that setting stops
+the host immediately after deployment, whereas enabled schedules act at their next
+trigger and do not immediately align EC2 with the opening window.
 No API keys belong in this file. The existing two SecureStrings remain prerequisites.
 
 Install Node 22+, Python 3.9+, AWS CLI v2, and Docker with buildx; start Docker and
@@ -83,7 +87,7 @@ reported phase/SSM command and rerun after fixing the cause. Automatic image rol
 and host Docker-cache pruning are not provided.
 
 **Scope:** `WardrobeBackendHost`, `WardrobeControlPlane` and `WardrobeEdgeHosting`
-are registered, with explicit host → control → edge deployment dependencies. The control schedules default disabled;
+are registered, with explicit host → control → edge deployment dependencies. The control schedules follow `schedules_enabled` (default true);
 its readiness URL and CloudFront grants remain empty until the edge binding below.
 The command also deploys `WardrobeEdgeHosting`, binds control to its distribution
 and builds/uploads the SPA. It does not provision external Qdrant Cloud or delete
@@ -240,9 +244,11 @@ stack deletion; delete retained images/repository deliberately only when retired
 functions run outside a VPC; they have describe plus instance-scoped start (control)
 or stop (sweeper) permission and one-week log retention. DescribeInstances requires
 `Resource: *`. No SSM/secret, public-IP or analytics-table permissions are present.
-All three Scheduler resources default disabled with `SchedulesEnabled=false`.
-Keep them disabled until the operating cost policy is resolved and live checks pass.
-Disable them before running the host deployment wrapper after schedules have been enabled.
+All three Scheduler resources follow `schedules_enabled` in `deploy.config.json`,
+defaulting to true when omitted. The wrapper validates a JSON boolean and explicitly
+passes `WardrobeControlPlane:SchedulesEnabled` on every deployment, overriding any
+previous stack parameter value. Direct fresh CDK deployments also default true.
+Set `schedules_enabled: false` for a deliberately disabled deployment.
 
 After deploying the host, deploy control independently if not using the wrapper:
 
@@ -274,7 +280,8 @@ Subsequent CDK deployments reuse existing parameter values unless explicitly cha
 Direct anonymous Function URL calls must return 403; trusted administrators retain
 their IAM access. No public URL grant is created.
 
-Enable all three schedules only after acceptance and the cost-policy decision:
+The full deployment applies the config automatically; no separate activation is
+needed. To change only the schedules manually (without the full deployment):
 
 ```bash
 cd infra
@@ -364,8 +371,10 @@ Account/organization allowance availability and actual costs are unverified.
 
 The full `bash infra/deploy.sh` workflow deploys all three stacks, activates the
 host, binds control and publishes Vite. It stops EC2 on success or ordinary failure
-by default; existing schedule state is preserved, fresh schedules default disabled.
-Disable previously enabled schedules before host deployment. Frontend build failure
+by default; all three schedules follow `schedules_enabled` (default true).
+Schedules can run during deployment when enabled. For maintenance requiring no
+scheduled actions, explicitly deploy with the setting false, then redeploy true
+when ready. Frontend build failure
 leaves the prior release available; first deployment may have an empty SPA bucket
 until publication succeeds. Cross-service deployment is not atomic.
 

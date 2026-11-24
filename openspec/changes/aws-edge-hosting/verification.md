@@ -110,8 +110,8 @@ references and duplicate grants. The host's existing managed-SG-only rules remai
 uploads dependencies before index with immutable/60-second headers, retains old
 hashed assets and creates invalidations for both entry paths. The full host
 wrapper now deploys edge, binds control and publishes the frontend before its
-existing default EC2 shutdown. Existing schedule state is retained; fresh schedules
-remain disabled. Failures do not claim atomic rollback or live acceptance.
+existing default EC2 shutdown. The wrapper applies `schedules_enabled` from deployment config (default true) on
+every deploy. Failures do not claim atomic rollback or live acceptance.
 
 Additional official configuration sources checked on 2026-11-24:
 

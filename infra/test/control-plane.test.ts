@@ -4,7 +4,7 @@ import { App } from 'aws-cdk-lib';
 import { Template, Match } from 'aws-cdk-lib/assertions';
 import { ControlPlaneStack } from '../lib/control-plane-stack';
 
-test('control plane is private, ARM64, outside VPC with scoped roles and disabled zone-aware schedules', () => {
+test('control plane is private, ARM64, outside VPC with scoped roles and enabled zone-aware schedules', () => {
   const t = Template.fromStack(new ControlPlaneStack(new App(), 'TestControl', {
     env: { account: '708564192046', region: 'eu-central-1' },
   }));
@@ -18,7 +18,7 @@ test('control plane is private, ARM64, outside VPC with scoped roles and disable
   });
   t.hasResourceProperties('AWS::Scheduler::Schedule', { ScheduleExpression: 'rate(5 minutes)' });
   const json = t.toJSON();
-  assert.equal(json.Parameters.SchedulesEnabled.Default, 'false');
+  assert.equal(json.Parameters.SchedulesEnabled.Default, 'true');
   const statements = Object.values(t.findResources('AWS::IAM::Policy')).flatMap((r: any) => r.Properties.PolicyDocument.Statement);
   for (const action of ['ec2:StartInstances', 'ec2:StopInstances']) {
     const matching = statements.filter(s => JSON.stringify(s.Action).includes(action));

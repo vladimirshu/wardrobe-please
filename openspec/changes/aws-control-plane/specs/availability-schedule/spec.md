@@ -59,3 +59,23 @@ The frontend build, schedules and sweeper SHALL derive the opening days, times a
 #### Scenario: Schedule change
 - **WHEN** the opening window or time zone changes
 - **THEN** the corresponding frontend build receives the updated configuration and is deployed with the schedule change
+
+
+### Requirement: Deployment-configured schedule enablement
+The full deployment SHALL read `schedules_enabled` from its JSON configuration,
+default to true when omitted, reject non-boolean values, and explicitly apply it
+to the control stack's `SchedulesEnabled` parameter on every deployment. The setting
+SHALL control all three schedules and SHALL be independent of `stop_after_deploy`.
+Fresh direct CDK deployments SHALL also default to enabled schedules.
+
+#### Scenario: Default enablement
+- **WHEN** deployment config omits `schedules_enabled`
+- **THEN** deployment explicitly enables weekday start, weekday stop and the sweeper
+
+#### Scenario: Deliberate disablement
+- **WHEN** deployment config sets `schedules_enabled` to false
+- **THEN** deployment explicitly disables all three schedules, including on an existing stack
+
+#### Scenario: Invalid value
+- **WHEN** deployment config contains a string instead of a boolean for `schedules_enabled`
+- **THEN** deployment fails before any AWS operation

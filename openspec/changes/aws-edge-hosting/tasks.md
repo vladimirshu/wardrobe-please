@@ -6,7 +6,7 @@ Checked tasks below describe repository implementation and offline verification,
 not deployed resources. See [verification](verification.md).
 
 - [x] 1.1 Verify published pricing/features, managed headers, origin attempt/timeout settings and error caching; record the selected pay-as-you-go/no-WAF fallback and its cost limits
-- [ ] 1.2 Before deployment, confirm actual account/organization recurring allowance availability and pay-as-you-go configuration in AWS; keep schedules disabled until acceptance
+- [ ] 1.2 Before deployment, confirm actual account/organization recurring allowance availability and pay-as-you-go configuration in AWS; schedule enablement follows deployment config
 
 ## 2. Buckets and distribution
 

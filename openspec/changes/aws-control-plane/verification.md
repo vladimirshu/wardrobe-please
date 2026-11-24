@@ -1,5 +1,16 @@
 # Control-plane verification — 2026-11-24
 
+## Deployment configuration update — 2026-11-24
+
+Owner requested schedule enablement from `infra/deploy.config.json`, default true.
+The config and example now include `schedules_enabled: true`. The full deployment
+validates a JSON boolean and explicitly supplies `SchedulesEnabled` on every run;
+CDK's fresh-stack default is also true. All three schedules use that setting,
+independently of `stop_after_deploy`. The binding helper preserves the applied value.
+No AWS mutation was performed. Infrastructure compilation, 15 Node tests, 14 Python
+tests, IntelliJ build and strict OpenSpec validation passed. Added checks cover
+omitted/true/false values on deployment and rejection of string booleans before AWS.
+
 ## Implemented locally
 
 - Control Lambda: stopped starts, transition states wait, running probes only the
@@ -11,7 +22,7 @@
 - CDK: Node 22 ARM64 functions outside a VPC, bundled SDK, separate roles/log groups,
   instance-scoped mutations, wildcard describe only, AWS_IAM Function URL,
   conditional distribution-scoped invoke grants, schedule-group-scoped trust.
-  Three schedules default disabled. Host-first app dependency, no edge reverse reference.
+  Three schedules default enabled, controlled by deployment config `schedules_enabled`. Host-first app dependency, no edge reverse reference.
 - Edge-binding helper, operator runbook, architecture diagram and related designs.
 
 ## Local checks
@@ -52,5 +63,5 @@ No AWS resources were changed. Do not treat local assertions as deployed behavio
 The edge is now implemented locally with owner-approved pay-as-you-go pricing
 without WAF (2026-11-24); live CloudFront/readiness acceptance remains pending.
 The estimated scheduled-host total fits €10 with little margin, but this does not
-establish observed costs or approve routine schedule enablement. Keep schedules
-disabled until live acceptance and the operating-policy checks pass.
+establish observed costs or approve routine schedule enablement. Schedule enablement now follows owner-selected deployment config (default true);
+live acceptance and observed costs remain unverified.

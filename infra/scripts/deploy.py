@@ -179,8 +179,9 @@ def main():
         raise RuntimeError('Set budget_email in deploy.config.json before deployment.')
     if (not re.fullmatch(r'\d{12}', config['account_id'])
             or not isinstance(config['stop_after_deploy'], bool)
+            or not isinstance(config['schedules_enabled'], bool)
             or not isinstance(config['budget_usd'], (int, float)) or config['budget_usd'] <= 0):
-        raise RuntimeError('Invalid account_id, stop_after_deploy or budget_usd.')
+        raise RuntimeError('Invalid account_id, stop_after_deploy, schedules_enabled or budget_usd.')
     os.environ.update(AWS_PROFILE=config['profile'], AWS_REGION=config['region'],
                       AWS_DEFAULT_REGION=config['region'], AWS_PAGER='', AWS_CLI_AUTO_PROMPT='off')
     for tool in ('aws', 'node', 'npm', 'npx', 'docker'):
@@ -231,6 +232,7 @@ def main():
             run('aws', 'ec2', 'wait', 'instance-running', '--instance-ids', existing_id)
         run('npx', 'cdk', 'deploy', '--all', '--require-approval', 'never', *context,
             '--parameters', f'{STACK}:QdrantHost={qdrant}', '--parameters', f'{STACK}:ImageTag={tag}',
+            '--parameters', f'WardrobeControlPlane:SchedulesEnabled={str(config["schedules_enabled"]).lower()}',
             '--outputs-file', 'outputs.json')
         deployed = stack()
         instance_id, repository = output(deployed, 'InstanceId'), output(deployed, 'RepositoryUri')
@@ -247,9 +249,9 @@ def main():
         edge = aws('cloudformation', 'describe-stacks', '--stack-name', 'WardrobeEdgeHosting')['Stacks'][0]
         run('bash', 'bind-control.sh', output(edge, 'DistributionId'))
         run('bash', 'deploy-spa.sh')
-        print('Host verified, edge/control bound and SPA published. Live edge acceptance remains separate; schedules retain their configured state.', flush=True)
+        print('Host verified, edge/control bound and SPA published. Live edge acceptance remains separate; schedules follow schedules_enabled.', flush=True)
     finally:
-        # Stop after verification/failure unless explicitly disabled. Control schedules default off.
+        # Immediate host shutdown is independent of the recurring schedule setting.
         if config['stop_after_deploy']:
             latest = stack()
             ids = {i for i in (existing_id, output(latest, 'InstanceId') if latest else None) if i}

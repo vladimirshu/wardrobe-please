@@ -55,7 +55,7 @@ Control Lambda: `ec2:DescribeInstances` on `*` (this API has no resource-level p
 
 ## Migration Plan
 
-1. Deploy the stack with schedules disabled, invoke `/up` manually against the stopped instance, check STARTING then UP.
+1. Deploy with `schedules_enabled` from deployment config (default true); use false explicitly for maintenance if scheduled actions would interfere. Invoke `/up` against the stopped instance and check STARTING then UP.
 2. Enable the schedules; confirm a weekday start at 08:00 and weekday stop at 22:00, and verify neither schedule runs at weekends.
 3. Wake off-hours once and confirm the instance stops about 20 minutes later.
 4. Rollback: disable the schedules and Lambdas; the instance can be controlled by hand.
@@ -89,8 +89,13 @@ invocation. There is no reverse CloudFormation reference or out-of-band Lambda
 configuration edit. Before valid readiness configuration, control returns STARTING
 without describing or starting the instance.
 
-All three Scheduler resources default DISABLED via `SchedulesEnabled=false`, pending
-acceptance and the cost-policy decision. Scheduler role trust is scoped to the
+All three Scheduler resources default ENABLED via `SchedulesEnabled=true`. The
+full deployment reads JSON boolean `schedules_enabled` from `deploy.config.json`
+(default true when omitted), validates it and explicitly supplies the control-stack
+parameter on every deployment. False deliberately disables all three; existing
+stack values do not override the config. `stop_after_deploy` independently controls
+immediate host shutdown; enabling schedules does not immediately reconcile EC2
+state with the opening window. Enabled schedules can execute during deployment. Scheduler role trust is scoped to the
 account and schedule group (Scheduler supplies the group ARN, not schedule ARN).
 Targets use no retries and a 60-second maximum event age to limit delayed starts.
 The same validated frontend JSON supplies weekday crons/time zone and the sweeper

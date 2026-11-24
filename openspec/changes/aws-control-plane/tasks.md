@@ -32,5 +32,5 @@
 Local implementation and checks are complete for the checked tasks; no deployment
 or live acceptance is claimed. See [verification](verification.md). Tasks 2.4,
 4.1, 4.2 and 5.2 require live stop/start cycles, the edge distribution, observation
-time and billing/alert evidence. All schedules default disabled pending acceptance
-and the operating-cost decision in the design.
+time and billing/alert evidence. All schedules follow deployment config `schedules_enabled`, default true; live
+checks and cost verification remain separate.
