@@ -27,6 +27,9 @@ public class RetrievalParametersMapper {
         if (analysis.priceConstraint() != null) {
             context.put(RetrievalContextKeys.FILTER_EXPRESSION, buildPriceFilter(analysis.priceConstraint()));
         }
+        if (analysis.size() != null) {
+            context.put("ecom_exact_size", com.ecomassistant.catalog.CatalogSizes.normalize(analysis.size()));
+        }
         if (analysis.negativeExamples() != null && !analysis.negativeExamples().isEmpty()) {
             context.put(RetrievalContextKeys.NEGATIVE_EXAMPLES, analysis.negativeExamples());
         }

@@ -63,7 +63,7 @@ public class SkuOutputGuardrail {
         }
         for (String sku : selectedSkus) {
             if (!retrievedSkus.contains(sku)) {
-                log.warn("Product-filtering output contains a SKU that was not retrieved; dropping it: {}", sku);
+                log.warn("Product-filtering output contains a SKU that was not retrieved; dropping it");
             }
         }
     }

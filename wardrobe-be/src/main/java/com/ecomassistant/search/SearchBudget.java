@@ -42,6 +42,10 @@ public final class SearchBudget implements AutoCloseable {
         expiry = TIMER.schedule(this::expire, total.toNanos(), TimeUnit.NANOSECONDS);
     }
 
+    public static SearchBudget bounded(Duration remaining) {
+        return new SearchBudget(remaining.compareTo(TOTAL) < 0 ? remaining : TOTAL, System::nanoTime);
+    }
+
     public static SearchBudget current() { return CURRENT.get(); }
 
     public synchronized long remainingNanos() {
@@ -64,6 +68,8 @@ public final class SearchBudget implements AutoCloseable {
         cancellations.add(cancellation);
         return () -> { synchronized (this) { cancellations.remove(cancellation); } };
     }
+
+    public void cancel() { expire(); }
 
     private synchronized void expire() {
         if (closed || expired) return;

@@ -1,8 +1,8 @@
 # Wardrobe, Please search request flow
 
-This Mermaid sequence diagram uses C4 container boundaries to show a search request from the storefront to the Spring Boot API and its dependencies.
+This Mermaid sequence diagram uses C4 container boundaries to show the default direct search request from the storefront to the Spring Boot API and its dependencies. The implemented, opt-in MCP workflow is shown below.
 
-**Catalog indexing happens at startup.** If the current catalog revision needs import or repair, the backend embeds the products and stores their vectors in Qdrant before reporting ready. A complete catalog revision reuses its stored vectors. Each accepted search embeds the interpreted query and any negative examples at request time.
+**Catalog indexing happens at startup.** If the current catalog revision needs import or repair, the backend embeds the products and stores their vectors in Qdrant before reporting ready. A complete catalog revision reuses its stored vectors. Each allowed search embeds the interpreted query and any negative examples in one batch at request time. Catalog imports retain CSV sizes and add normalized exact size tokens with a keyword index; readiness verifies the payload and index before size-filtered MCP searches.
 
 ```mermaid
 sequenceDiagram
@@ -50,7 +50,7 @@ sequenceDiagram
         API-->>Shop: 500 Analysis error
     end
 
-    API->>Embed: Create query and optional negative-example embeddings
+    API->>Embed: Create query and optional negative-example embeddings in one batch
     Embed-->>API: Query and optional negative-example vectors
     API->>DB: Compare query vectors with stored product vectors and apply price filters
     DB-->>API: Ranked product matches
@@ -73,7 +73,7 @@ Qdrant can run locally or in Qdrant Cloud. OpenAI supplies embeddings with eithe
 
 Product refinement logs the candidate count, response time across any schema retry, model, and finish reason at INFO. DEBUG adds token usage and the final validated SKUs.
 
-The planned [provider-managed MCP search flow](../wardrobe-be/openspec/changes/latency-first-mcp-catalog-search/design.md) is documented in OpenSpec. The [AWS edge](../openspec/changes/archive/2026-11-24-aws-edge-hosting/design.md) and [wake-up flow](../openspec/changes/archive/2026-11-24-aws-control-plane/design.md) are implemented locally; deployment and live acceptance remain pending.
+The implemented [provider-managed MCP search flow](../wardrobe-be/openspec/changes/latency-first-mcp-catalog-search/design.md) is opt-in and has not passed live provider acceptance. It uses MCP endpoints in this backend; no separate MCP service is deployed. The [AWS edge](../openspec/changes/archive/2026-11-24-aws-edge-hosting/design.md) and [wake-up flow](../openspec/changes/archive/2026-11-24-aws-control-plane/design.md) are implemented locally; deployment and live acceptance remain pending.
 
 **Implemented AWS edge protection (not deployed):** pay-as-you-go CloudFront without WAF, as approved on 2026-11-24. S3 and Lambda use OAC; backend uses the imported private VPC Origin. The static behavior uses managed `CachingOptimized` without an origin request policy, so S3 receives its bucket Host rather than the viewer domain; 60-second/one-year object headers govern caching above the policy’s one-second floor. AWS-managed `SecurityHeadersPolicy` is attached to the static behavior without overrides or CSP. Included Shield Standard remains; there is no WAF application-request filtering, paid Shield, edge rate rule or wake spending cap. Backend search limits remain unchanged. API caching is disabled and configurable 5xx error minimum TTLs are zero distribution-wide without status/body remapping. Backend connections use one attempt, three seconds connect and 30 seconds response timeout; POST body/Content-Type are forwarded without rewriting. Control GET/HEAD routing precedes backend routing, so readiness probes cannot recurse into control.
 
@@ -108,6 +108,67 @@ The planned AWS deployment uses remote Qdrant and starts with micro (1 GiB), wit
 small as fallback; total-host headroom and real-provider load remain unverified.
 Nano experiment tooling and the alternate Compose profile have been removed.
 
+
+## Provider-managed MCP search (implemented, disabled by default)
+
+`ecom.mcp.enabled=true` exposes the authenticated `/api/v1/mcp` endpoint in the same
+Spring backend. `ecom.mcp.storefront=true` selects the single-request Responses flow;
+startup rejects storefront mode without the endpoint or a valid HTTPS public URL.
+Public storefront routes retain their input validation, admission and conversation
+locking. MCP callbacks run on separate request threads without those conversation
+locks. The existing uncached CloudFront API behavior forwards callback headers to the
+backend's private VPC Origin; actual forwarding/connectivity remain unverified.
+
+```mermaid
+sequenceDiagram
+    participant Shop as Storefront
+    participant API as Spring backend: search
+    participant OpenAI as OpenAI Responses
+    participant MCP as Same Spring backend: MCP endpoint
+    participant DB as Embeddings + Qdrant
+    Shop->>API: POST /api/v1/search
+    Note over API: Input/admission/lock; one 25-second deadline
+    API->>API: Issue short-lived, one-retrieval bearer capability
+    API->>OpenAI: One POST /v1/responses; low reasoning, bounded output; no retries
+    Note over OpenAI: Safety/relevance, rewrite and exact constraints
+    opt Allowed search
+        OpenAI->>MCP: Authenticated initialize/discovery then search_catalog
+        Note over MCP: No conversation lock; validate arguments and claim retrieval once
+        MCP->>DB: One embedding batch; price AND size before ranking/prefetch
+        DB-->>MCP: Ordered candidates
+        MCP->>MCP: Record arguments and candidates against search capability
+        MCP-->>OpenAI: Bounded, untrusted catalog facts
+    end
+    OpenAI-->>API: Structured verdict/analysis and selected SKUs
+    API->>API: Validate schema, verdict, actual arguments, unique eligible SKUs and exact constraints
+    Note over API: Reject dependency/tool failures; empty successful retrieval remains 200
+    API->>API: Store only user turn and validated analysis summary; remove capability
+    API-->>Shop: 200 results / 422 suggestions / 500 failure / 504 timeout
+```
+
+The single Responses request uses the remaining search deadline, rather than the
+five-second direct-chat attempt cap. It disables connection recovery, redirects,
+transport retries and schema correction. Callback cancellation is linked to the
+originating search; embeddings and Qdrant retain bounded dependency retries within
+its remaining deadline. Discovery does not consume retrieval; invalid/repeated calls
+invalidate final evidence. No automatic fallback to direct search occurs.
+
+The backend's in-memory record supplies trusted retrieval evidence. Provider trace
+arguments, when present, must agree. Product cards come from recorded catalog data
+in retrieval order, with strict/inclusive price and exact size rechecks. Material
+selection uses catalog facts and an additional conservative recognized-material
+exclusion check; descriptions mentioning an excluded material are omitted even when
+the mention is negated. Unknown material facts cannot satisfy such exclusions.
+
+Optional external MCP identities use configured bearer secrets and per-client/daily
+admission. Request-scoped storefront callbacks reuse the original admission. Tokens,
+provider bodies, tool traffic, candidate facts and SKU selection are excluded from
+MCP diagnostic logs and conversation summaries. Direct-mode logging remains as above.
+
+Local deterministic HTTP/Qdrant tests are separate from live provider acceptance.
+Keep both flags false for normal traffic until the [verification and rollout gates](../wardrobe-be/openspec/changes/latency-first-mcp-catalog-search/verification.md)
+pass. Operator rollback sets `ecom.mcp.storefront=false`; direct mode retains its
+original two-stage chat workflow. Catalog size metadata is additive and compatible.
 
 ## AWS backend host
 

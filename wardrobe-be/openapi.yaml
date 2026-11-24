@@ -13,7 +13,7 @@ info:
     filtering, price filtering and optional lowest-price ordering.
 
     Notes:
-    * There is no authentication — every request is permitted (`permitAll`).
+    * Storefront routes are public. The opt-in MCP endpoint requires a bearer token.
     * The product catalog is imported from a CSV file at application startup;
       there is no upload endpoint yet.
     * HTTP 200 responses carry `products` (search results). Requests the
@@ -36,6 +36,58 @@ tags:
     description: Application readiness
 
 paths:
+  /api/v1/mcp:
+    post:
+      tags: [Catalog]
+      summary: Authenticated read-only catalog MCP endpoint (opt-in)
+      description: |
+        Stateless Streamable HTTP JSON-RPC. Supports initialize, ping, tools/list,
+        tools/call for search_catalog and initialization/cancellation notifications.
+        Requires Accept listing application/json and text/event-stream.
+        GET/DELETE return 405 for authorized callers (no SSE stream or server sessions).
+        Disabled by default. Storefront tokens expire with the originating search and
+        permit one retrieval; optional configured external clients have admission limits.
+        Arguments: searchQuery, optional negativeExamples, priceConstraint, size and
+        sortByLowestPrice. Unknown arguments and caller-controlled filters/caps are rejected.
+        JSON-RPC errors and typed tool errors use HTTP 200; tool errors have isError=true.
+      security:
+        - McpBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [jsonrpc, method]
+              properties:
+                jsonrpc:
+                  type: string
+                  enum: ['2.0']
+                id:
+                  description: String or numeric request identifier; omit for notifications.
+                method:
+                  type: string
+                params:
+                  type: object
+      responses:
+        '200':
+          description: JSON-RPC result or error; tool results contain bounded catalog facts.
+        '202':
+          description: Accepted notification with no response body.
+        '400':
+          description: Unsupported protocol version or invalid notification.
+        '401':
+          description: Missing, invalid or expired bearer token.
+        '403':
+          description: Invalid Origin header.
+        '404':
+          description: MCP endpoint disabled.
+        '406':
+          description: Accept must include JSON and event-stream.
+        '413':
+          description: JSON-RPC request exceeds 32 KiB.
+        '415':
+          description: Content-Type must be application/json.
   /api/v1/search:
     post:
       tags:
@@ -361,6 +413,10 @@ paths:
                 error: Catalog is not ready
 
 components:
+  securitySchemes:
+    McpBearer:
+      type: http
+      scheme: bearer
   schemas:
     HealthStatus:
       type: object
@@ -485,6 +541,11 @@ components:
             value:
               type: number
               example: 200
+        size:
+          type: string
+          nullable: true
+          description: Optional exact catalog size token; no regional conversion or stock guarantee.
+          example: M
         sortByLowestPrice:
           type: boolean
           description: Whether results are ordered by ascending price.

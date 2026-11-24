@@ -66,8 +66,12 @@ public class QueryAnalysisValidator {
             throw illegal("Negative examples exceed the maximum of " + MAX_NEGATIVE_EXAMPLES, analysis);
         }
 
+        if (analysis.size() != null) {
+            try { com.ecomassistant.catalog.CatalogSizes.normalize(analysis.size()); }
+            catch (IllegalArgumentException ex) { throw illegal("Invalid catalog size", "invalid size"); }
+        }
         PriceConstraint priceConstraint = analysis.priceConstraint();
-        if (priceConstraint != null && (priceConstraint.value() == null
+        if (priceConstraint != null && (priceConstraint.operator() == null || priceConstraint.value() == null
                 || priceConstraint.value().signum() <= 0)) {
             throw illegal("Price constraint value must be positive", analysis);
         }

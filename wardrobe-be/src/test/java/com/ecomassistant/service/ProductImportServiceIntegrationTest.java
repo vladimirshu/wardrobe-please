@@ -88,6 +88,21 @@ class ProductImportServiceIntegrationTest {
     }
 
     @Test
+    void missingSizePayloadOnCurrentRevisionIsRepairedAndIndexed() throws Exception {
+        productImportService.importSampleProducts();
+        qdrantClient.deletePayloadAsync(collectionName, List.of("sizeTokens"),
+                List.of(io.qdrant.client.PointIdFactory.id(UUID.fromString(VectorStoreUtils.skuPointId("RAIN1")))), true, null, null).get();
+        fakeEmbeddingModel.resetEmbedCount();
+        productImportService.importSampleProducts();
+        assertThat(fakeEmbeddingModel.getEmbedCount()).isGreaterThan(0);
+        assertThat(qdrantClient.getCollectionInfoAsync(collectionName).get().getPayloadSchemaMap())
+                .containsKey("sizeTokens");
+        fakeEmbeddingModel.resetEmbedCount();
+        productImportService.importSampleProducts();
+        assertThat(fakeEmbeddingModel.getEmbedCount()).isZero();
+    }
+
+    @Test
     void freshImportStoresAllProducts() {
         productImportService.importSampleProducts();
 

@@ -17,6 +17,25 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class QdrantRecommendDocumentRetrieverIntegrationTest extends AbstractRetrievalIntegrationTest {
 
     @Test
+    void sizeAndPriceApplyBeforeSimilarityAndCheapestPrefetch() {
+        for (boolean cheapest : List.of(false, true)) {
+            var context = new java.util.HashMap<String, Object>();
+            context.put("ecom_exact_size", "m");
+            context.put(RetrievalContextKeys.FILTER_EXPRESSION,
+                    new FilterExpressionBuilder().lt("price", 200).build());
+            context.put(RetrievalContextKeys.SORT_BY_LOWEST_PRICE, cheapest);
+            var results = retriever(10, 0).retrieve(query("jacket", context));
+            assertThat(skus(results)).contains("RAIN1").doesNotContain("RAIN2", "WOOL2", "DENIM1");
+            assertThat(results).allSatisfy(doc -> {
+                assertThat(doc.getMetadata().get("sizeTokens")).isEqualTo(List.of("M"));
+                assertThat(((Number) doc.getMetadata().get("price")).doubleValue()).isLessThan(200);
+            });
+            context.put("ecom_exact_size", "XXXL");
+            assertThat(retriever(10, 0).retrieve(query("jacket", context))).isEmpty();
+        }
+    }
+
+    @Test
     void similaritySearchReturnsRelevantProductsMostRelevantFirst() {
         QdrantRecommendDocumentRetriever r = retriever(3, 0.0f);
 

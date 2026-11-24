@@ -1,6 +1,6 @@
 ## Context
 
-`QueryAnalyzer` combines safety, apparel relevance, conversational rewrite, price extraction and negative examples in one chat completion. Qdrant applies the price constraint during retrieval. When there are candidates, the backend sends a second chat request to select SKUs and returns the matching catalog records in retrieval order. The retriever currently embeds the positive query and negative examples in separate calls. Catalog sizes currently sit in a comma-separated payload string.
+Before this change, `QueryAnalyzer` combines safety, apparel relevance, conversational rewrite, price extraction and negative examples in one chat completion. Qdrant applies the price constraint during retrieval. When there are candidates, the backend sends a second chat request to select SKUs and returns the matching catalog records in retrieval order. The retriever currently embeds the positive query and negative examples in separate calls. Catalog sizes currently sit in a comma-separated payload string.
 
 The existing [migrate-to-openai-luna](../archive/2026-11-17-migrate-to-openai-luna/proposal.md) implementation supplies the provider configuration; separate migration verification is not a prerequisite. This change adds a Responses integration with one provider-managed MCP tool for the MCP search flow. OpenAI can execute the tool and resume generation inside that request. [OpenAI remote MCP](https://developers.openai.com/api/docs/guides/tools-connectors-mcp)
 
@@ -44,6 +44,55 @@ Return either a structured refusal or a successful interpretation with selected 
 2. Add the normalized size payload and index. Change the catalog revision calculation to include the payload schema version, verify the new fields across the active catalog, and enable size filtering after readiness passes. Requests that require size filtering fail explicitly while the new payload is unavailable. Legacy records remain readable by existing product mapping.
 3. Enable provider connectivity to MCP with scoped authentication and verify the one-request flow and candidate evidence. Verify the complete search workflow in an isolated deployment, including rejection before retrieval, conversation refinements, exact constraints, candidate selection and dependency failures. Switch storefront traffic after these functional checks pass. Retain the previous direct path during rollout for operator rollback. A failed MCP request surfaces an error during normal operation.
 
-## Open Questions
+## Implementation decisions
 
-Choose the deployment connectivity and authentication mechanism during implementation. Verify that the selected transport exposes enough trusted tool evidence for final validation.
+The actual Spring backend serves stateless Streamable HTTP JSON-RPC at `/api/v1/mcp`.
+No separate MCP server or fixture deployment is required. Deterministic tests use the
+backend with an isolated Testcontainers catalog and a simulated OpenAI service.
+The real-provider check uses this same backend endpoint with an isolated catalog.
+
+`ecom.mcp.enabled` exposes the endpoint; `ecom.mcp.storefront` selects the Responses
+workflow. Both default to false pending live acceptance. Direct search remains the
+operator rollback path; a failed MCP search never falls back automatically.
+
+The public endpoint is the backend's CloudFront HTTPS URL. Existing uncached
+`/api/v1/*` routing forwards Authorization, Content-Type, Accept and MCP protocol
+headers to the same backend. No new infrastructure or MCP process is introduced.
+Live forwarding and OpenAI connectivity remain rollout checks.
+
+Each admitted storefront search generates an opaque 256-bit bearer capability held
+only in memory. This requires one backend process; multiple replicas would need shared
+capability/evidence state or routing to the originating process. It expires at the search deadline and is removed on completion.
+Discovery does not consume its allowance. Invalid/repeated invocations invalidate
+final selection. An independent callback thread uses the remaining search deadline,
+linked cancellation and no conversation lock. The backend records actual validated
+arguments and retrieved documents in the capability, then compares final analysis
+and selection to this record. Response traces, when present, must agree. This avoids
+depending on provider-specific serialization of MCP result facts.
+
+Optional external clients use separately configured `ecom.mcp.clients.<identity>`
+bearer secrets with the existing per-client and daily admission limits. Storefront
+callbacks reuse the already-admitted search and do not charge admission twice.
+Unknown/expired credentials cannot list tools or invoke retrieval.
+
+One Responses HTTP call uses the remaining 25-second search deadline with a 1200-token
+default cap, no redirects, retries, schema correction or follow-up sends. Embeddings
+and Qdrant retain bounded dependency retries within the callback deadline. The
+five-second direct-chat attempt cap does not apply to the single Responses workflow,
+which includes the callback. Provider bodies and tool facts are not logged; memory
+stores only user turns and validated analysis summaries.
+
+Exact size tokens and a keyword index are verified before catalog readiness. The
+payload schema version changes the import revision, and missing size metadata on
+current-revision records triggers repair. Price and exact size filters precede both
+ordinary similarity ranking and cheapest-first prefetch. Positive/negative embeddings
+are submitted together and bound by response index; malformed batches fail retrieval.
+
+Material selection is model-owned with an additional conservative deterministic check:
+for recognized excluded materials, selected records must contain catalog material facts
+and must not mention the excluded material, including negated mentions. This can omit
+otherwise eligible products, such as descriptions saying “rather than animal down.”
+It does not infer composition that the catalog does not state.
+
+Implementation and local verification do not establish live provider compatibility.
+See [verification and rollout](verification.md) for the remaining release gate.

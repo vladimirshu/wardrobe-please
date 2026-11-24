@@ -8,9 +8,40 @@ For offline verification against local Testcontainers Qdrant, use
 `QDRANT_USE_TLS=false QDRANT_API_KEY= ./gradlew test --offline` so an inherited
 cloud TLS setting cannot affect local fixtures.
 
+## Optional provider-managed MCP search
+
+The same backend can serve MCP at `/api/v1/mcp` and use it from one OpenAI Responses
+request. It is implemented locally and **disabled by default pending live acceptance**.
+There is no separate MCP service or test-server deployment.
+
+| Property | Default | Meaning |
+|---|---|---|
+| `ecom.mcp.enabled` | `false` | Expose authenticated read-only MCP endpoint |
+| `ecom.mcp.storefront` | `false` | Use Responses/MCP for storefront search; requires enabled endpoint and OpenAI |
+| `ecom.mcp.public-url` | empty | Public HTTPS URL ending in `/api/v1/mcp` |
+| `ecom.mcp.max-output-tokens` | `1200` | Total Responses output cap including reasoning |
+| `ecom.mcp.responses-url` | OpenAI `/v1/responses` | Provider endpoint; override only for isolated tests |
+| `ecom.mcp.clients.<identity>` | none | Optional external MCP bearer secret, at least 32 characters; inject as a secret |
+
+For storefront use, the backend creates an opaque per-search bearer token; no static
+MCP secret is needed. OpenAI uses the token for discovery and one retrieval. The
+backend checks the final analysis and selected SKUs against its own recorded tool
+result. Calls share the 25-second deadline; the Responses send has no retries,
+redirects or follow-ups. Failed MCP searches return errors without automatic fallback.
+
+Catalog startup upgrades size payload/index automatically and verifies readiness.
+Size is an optional interpretation field. Positive/negative queries use one embedding
+batch. External MCP invocations have their own client identity and existing admission
+limits; storefront callbacks do not charge the same search twice.
+
+See [architecture](../docs/architecture.md#provider-managed-mcp-search-implemented-disabled-by-default)
+and [verification/rollout](openspec/changes/latency-first-mcp-catalog-search/verification.md).
+To roll back search orchestration, set `ECOM_MCP_STOREFRONT=false` and restart; disabling
+`ECOM_MCP_ENABLED` also removes the endpoint. Keep direct-search artifacts/configuration.
+
 ## Cost controls and operations
 
-An admitted search calls the configured chat provider for query analysis. If analysis allows the request and Qdrant returns candidates, a second call selects matching SKUs. Both calls use the same provider; OpenAI GPT-6 Luna is the default.
+In the default direct mode, an admitted search calls the configured chat provider for query analysis. If analysis allows the request and Qdrant returns candidates, a second call selects matching SKUs. Both calls use the same provider; OpenAI GPT-6 Luna is the default.
 Each chat stage can repeat invalid structured output once, subject to the shared search retry allowance below.
 Truncated or refused completions fail the search.
 An allowed search uses the existing OpenAI `text-embedding-3-small` model for Qdrant.

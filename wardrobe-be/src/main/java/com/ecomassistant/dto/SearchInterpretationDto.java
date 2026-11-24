@@ -14,7 +14,13 @@ public record SearchInterpretationDto(
         String searchQuery,
         List<String> negativeExamples,
         PriceConstraintDto priceConstraint,
-        boolean sortByLowestPrice) {
+        boolean sortByLowestPrice,
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) String size) {
+
+    public SearchInterpretationDto(String searchQuery, List<String> negativeExamples,
+            PriceConstraintDto priceConstraint, boolean sortByLowestPrice) {
+        this(searchQuery, negativeExamples, priceConstraint, sortByLowestPrice, null);
+    }
 
     /**
      * Maps a validated {@link QueryAnalysis} to its interpretation. A {@code null}
@@ -34,6 +40,6 @@ public record SearchInterpretationDto(
                 analysis.searchQuery(),
                 negativeExamples,
                 priceConstraint,
-                analysis.sortByLowestPrice());
+                analysis.sortByLowestPrice(), analysis.size());
     }
 }

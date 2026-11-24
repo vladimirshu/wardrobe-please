@@ -8,13 +8,12 @@ import tools.jackson.databind.node.ObjectNode;
 import java.util.List;
 
 /**
- * Structured result of the single query-analysis LLM call.
+ * Validated query interpretation, used by direct analysis and the MCP workflow.
  *
  * <p>The verdict fields ({@code allowed}, {@code rejectionReasons},
  * {@code suggestedPrompts}) are kept separate from the search fields
  * ({@code searchQuery}, {@code negativeExamples}, {@code priceConstraint},
- * {@code sortByLowestPrice}) so the guardrail and the query transformation can be split
- * into separate calls later without changing consumers.
+ * {@code sortByLowestPrice}) so admission, retrieval and response mapping can validate them independently.
  *
  * @param allowed            whether the request is a valid apparel search request
  * @param rejectionReasons   why the request was rejected; empty when allowed
@@ -23,6 +22,7 @@ import java.util.List;
  * @param negativeExamples   negative examples to exclude from the search
  * @param priceConstraint    a single price constraint, or {@code null} when there is none
  * @param sortByLowestPrice  whether to order results by ascending price
+ * @param size               optional exact catalog size token
  */
 public record QueryAnalysis(
         boolean allowed,
@@ -31,7 +31,15 @@ public record QueryAnalysis(
         String searchQuery,
         List<String> negativeExamples,
         @Nullable PriceConstraint priceConstraint,
-        boolean sortByLowestPrice) {
+        boolean sortByLowestPrice,
+        @Nullable String size) {
+
+    public QueryAnalysis(boolean allowed, List<String> rejectionReasons, List<String> suggestedPrompts,
+            String searchQuery, List<String> negativeExamples, PriceConstraint priceConstraint,
+            boolean sortByLowestPrice) {
+        this(allowed, rejectionReasons, suggestedPrompts, searchQuery, negativeExamples, priceConstraint,
+                sortByLowestPrice, null);
+    }
 
     private static final String JSON_SCHEMA = createJsonSchema();
     private static final String STRICT_JSON_SCHEMA = createStrictJsonSchema();
@@ -48,6 +56,7 @@ public record QueryAnalysis(
         var schema = (ObjectNode) JacksonUtils.getDefaultJsonMapper()
                 .readTree(JsonSchemaGenerator.generateForType(QueryAnalysis.class));
         var properties = (ObjectNode) schema.get("properties");
+        properties.putObject("size").putArray("type").add("string").add("null");
         var priceConstraint = properties.remove("priceConstraint");
         // The generated schema treats the optional object as non-null when present.
         var alternatives = properties.putObject("priceConstraint").putArray("anyOf");

@@ -28,10 +28,15 @@ public class RetrievalConfig {
      */
     @Bean
     public RetrievalAugmentationAdvisor productSearchRetrievalAdvisor(
-            QdrantRecommendDocumentRetriever qdrantRecommendDocumentRetriever,
+            com.ecomassistant.mcp.CatalogRetrieval catalogRetrieval,
             ProductFilterQueryAugmenter productFilterQueryAugmenter) {
         return RetrievalAugmentationAdvisor.builder()
-            .documentRetriever(qdrantRecommendDocumentRetriever)
+            .documentRetriever(query -> {
+                Object value = query.context().get(com.ecomassistant.rag.ProductFilterContextKeys.QUERY_ANALYSIS);
+                if (!(value instanceof com.ecomassistant.guardrails.QueryAnalysis analysis))
+                    throw new IllegalStateException("Validated analysis is required for catalog retrieval");
+                return catalogRetrieval.search(com.ecomassistant.mcp.CatalogSearch.from(analysis));
+            })
             .documentJoiner(new OrderPreservingDocumentJoiner())
             .queryAugmenter(productFilterQueryAugmenter)
             .order(-300)

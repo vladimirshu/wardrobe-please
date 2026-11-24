@@ -92,6 +92,8 @@ public class VectorStoreUtils {
         metadata.put("category", product.getCategory() != null ? product.getCategory().slug() : null);
         metadata.put("colors", product.getColors());
         metadata.put("sizes", product.getSizes());
+        metadata.put(com.ecomassistant.catalog.CatalogSizes.FIELD,
+                com.ecomassistant.catalog.CatalogSizes.tokens(product.getSizes()));
         metadata.put("price", price != null ? price : 0.0);
         metadata.put("description", product.getDescription());
         metadata.put("imageKey", product.getImageKey());

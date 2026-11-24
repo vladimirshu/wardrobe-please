@@ -74,6 +74,7 @@ public class ProductImportService {
     }
 
     public void importSampleProducts() {
+        catalogReadiness.markVerified(null);
         String csvContent = readCsvContent();
         List<Product> products = extractProducts(csvContent);
         if (products.isEmpty()) {
@@ -88,6 +89,7 @@ public class ProductImportService {
 
         if (isComplete(desired, desiredRevision)) {
             log.info("Catalog already at revision {}; skipping import", desiredRevision);
+            ensureSizeIndex();
             catalogReadiness.markVerified(desiredRevision);
             return;
         }
@@ -104,6 +106,7 @@ public class ProductImportService {
         // desired manifest (never delete the legacy catalog before replacement succeeds).
         deletePointsNotIn(desired.keySet());
 
+        ensureSizeIndex();
         catalogReadiness.markVerified(desiredRevision);
         log.info("Successfully imported {} products at revision {}", products.size(), desiredRevision);
     }
@@ -213,12 +216,14 @@ public class ProductImportService {
     }
 
     private boolean allDesiredPresent(Map<String, Product> desired, String desiredRevision) {
-        Map<String, String> stored = storedRevisions();
-        for (String sku : desired.keySet()) {
-            String id = VectorStoreUtils.skuPointId(sku);
-            if (!desiredRevision.equals(stored.get(id))) {
-                return false;
-            }
+        Map<String, Map<String, Object>> stored = new HashMap<>();
+        for (var point : scrollAll(null)) stored.put(point.getId().getUuid(), payloadMap(point));
+        for (var entry : desired.entrySet()) {
+            var payload = stored.get(VectorStoreUtils.skuPointId(entry.getKey()));
+            if (payload == null || !desiredRevision.equals(payload.get("catalogRevision"))
+                    || !com.ecomassistant.catalog.CatalogSizes.tokens(entry.getValue().getSizes())
+                            .equals(payload.get(com.ecomassistant.catalog.CatalogSizes.FIELD))
+                    || !entry.getValue().getSizes().equals(payload.get("sizes"))) return false;
         }
         return true;
     }
@@ -226,6 +231,7 @@ public class ProductImportService {
     private Map<String, String> storedRevisions() {
         Map<String, String> revisions = new HashMap<>();
         for (Points.RetrievedPoint point : scrollAll(null)) {
+            // Full size payload comparison to the authored manifest happens in allDesiredPresent.
             revisions.put(point.getId().getUuid(), (String) payloadMap(point).get("catalogRevision"));
         }
         return revisions;
@@ -319,12 +325,31 @@ public class ProductImportService {
         }
     }
 
+    private void ensureSizeIndex() {
+        try {
+            var field = com.ecomassistant.catalog.CatalogSizes.FIELD;
+            var schema = qdrantClient.getCollectionInfoAsync(collectionName).get().getPayloadSchemaMap().get(field);
+            if (schema == null) {
+                qdrantClient.createPayloadIndexAsync(collectionName, field,
+                        io.qdrant.client.grpc.Collections.PayloadSchemaType.Keyword, null, true, null, null).get();
+            } else if (schema.getDataType() != io.qdrant.client.grpc.Collections.PayloadSchemaType.Keyword) {
+                throw new IllegalStateException("Exact catalog size index has an incompatible type");
+            }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Catalog size index interrupted");
+        } catch (ExecutionException ex) {
+            throw new IllegalStateException("Catalog size index unavailable");
+        }
+    }
+
     private String computeRevision(String csvContent) {
         String canonicalEdges = categoryRegistry.edges().entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
                 .map(edge -> edge.getKey() + "->" + edge.getValue())
                 .collect(Collectors.joining("\n"));
-        return sha256Hex(csvContent + "\n" + canonicalEdges);
+        return sha256Hex(csvContent + "\n" + canonicalEdges + "\n"
+                + com.ecomassistant.catalog.CatalogSizes.PAYLOAD_VERSION);
     }
 
     private static String sha256Hex(String input) {

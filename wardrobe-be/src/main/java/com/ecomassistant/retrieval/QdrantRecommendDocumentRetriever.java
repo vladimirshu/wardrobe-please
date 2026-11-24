@@ -61,14 +61,34 @@ public class QdrantRecommendDocumentRetriever implements DocumentRetriever {
         Filter.Expression filterExpression = filterExpression(context);
         boolean sortByLowestPrice = sortByLowestPrice(context);
 
-        List<float[]> negativeEmbeddings = negativeExamples.isEmpty()
-                ? List.of()
-                : embeddingModel.embed(negativeExamples);
-
-        Points.Query similarityQuery = similarityQuery(query.text(), negativeEmbeddings);
+        var inputs = new java.util.ArrayList<String>();
+        inputs.add(query.text());
+        inputs.addAll(negativeExamples);
+        var response = embeddingModel.call(new org.springframework.ai.embedding.EmbeddingRequest(inputs, null));
+        if (response == null || response.getResults().size() != inputs.size())
+            throw new IllegalStateException("Incomplete query embeddings");
+        float[][] vectors = new float[inputs.size()][];
+        for (var result : response.getResults()) {
+            int index = result.getIndex();
+            float[] vector = result.getOutput();
+            if (index < 0 || index >= vectors.length || vectors[index] != null || vector == null || vector.length == 0)
+                throw new IllegalStateException("Invalid query embedding positions");
+            for (float component : vector) if (!Float.isFinite(component))
+                throw new IllegalStateException("Invalid query embedding vector");
+            vectors[index] = vector;
+        }
+        for (var vector : vectors) if (vector == null || vector.length != vectors[0].length)
+            throw new IllegalStateException("Incomplete query embeddings");
+        Points.Query similarityQuery = similarityQuery(vectors);
         Common.Filter filter = filterExpression == null
-                ? null
-                : filterExpressionConverter.convertExpression(filterExpression);
+                ? null : filterExpressionConverter.convertExpression(filterExpression);
+        if (context.get("ecom_exact_size") instanceof String size) {
+            var combined = Common.Filter.newBuilder();
+            if (filter != null) combined.addMust(io.qdrant.client.ConditionFactory.filter(filter));
+            filter = combined.addMust(io.qdrant.client.ConditionFactory.matchKeyword(
+                    com.ecomassistant.catalog.CatalogSizes.FIELD,
+                    com.ecomassistant.catalog.CatalogSizes.normalize(size))).build();
+        }
 
         Points.QueryPoints.Builder queryPoints = Points.QueryPoints.newBuilder()
             .setCollectionName(collectionName)
@@ -133,14 +153,12 @@ public class QdrantRecommendDocumentRetriever implements DocumentRetriever {
         }, false);
     }
 
-    private Points.Query similarityQuery(String queryText, List<float[]> negativeEmbeddings) {
-        if (negativeEmbeddings.isEmpty()) {
-            return QueryFactory.nearest(VectorInputFactory.vectorInput(embeddingModel.embed(queryText)));
-        }
-        Points.RecommendInput.Builder recommend = Points.RecommendInput.newBuilder()
-            .addAllPositive(List.of(VectorInputFactory.vectorInput(embeddingModel.embed(queryText))))
-            .addAllNegative(negativeEmbeddings.stream().map(VectorInputFactory::vectorInput).toList())
-            .setStrategy(Points.RecommendStrategy.BestScore);
+    private Points.Query similarityQuery(float[][] vectors) {
+        if (vectors.length == 1) return QueryFactory.nearest(VectorInputFactory.vectorInput(vectors[0]));
+        var recommend = Points.RecommendInput.newBuilder()
+                .addPositive(VectorInputFactory.vectorInput(vectors[0]))
+                .setStrategy(Points.RecommendStrategy.BestScore);
+        for (int i = 1; i < vectors.length; i++) recommend.addNegative(VectorInputFactory.vectorInput(vectors[i]));
         return QueryFactory.recommend(recommend.build());
     }
 

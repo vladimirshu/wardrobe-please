@@ -31,7 +31,8 @@ public class GlobalExceptionHandler {
     }
 
 
-    @ExceptionHandler(com.ecomassistant.search.TransientDependencyException.class)
+    @ExceptionHandler({com.ecomassistant.search.TransientDependencyException.class,
+            com.ecomassistant.mcp.McpDependencyException.class})
     public ResponseEntity<Map<String, String>> handleDependencyFailure() {
         log.info("Search dependency retry allowance exhausted");
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

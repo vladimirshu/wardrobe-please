@@ -77,7 +77,15 @@ public class ProductSearchService {
         }
     }
 
+    private com.ecomassistant.mcp.McpStorefrontSearch mcpSearch;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void configureMcp(org.springframework.beans.factory.ObjectProvider<com.ecomassistant.mcp.McpStorefrontSearch> provider) {
+        mcpSearch = provider.getIfAvailable();
+    }
+
     private SearchResult executeSearch(String message, String conversationId) {
+        if (mcpSearch != null) return mcpSearch.search(message, conversationId);
         long startTime = System.currentTimeMillis();
         Prompt prompt = Prompt.builder().messages(UserMessage.builder().text(message).build()).build();
         ChatClientResponse chatClientResponse = productSearchChatClient
